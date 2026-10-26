@@ -1,0 +1,9 @@
+[submodule "construx"]
+	path = construx
+	url = https://github.com/SebastianVi1/construx-backend.git
+[submodule "construx-dashboard"]
+	path = construx-dashboard
+	url = https://github.com/SebastianVi1/construx-dashboard.git
+[submodule "construx-landing-page"]
+	path = construx-landing-page
+	url = https://github.com/SebastianVi1/construx-landing-page.git
