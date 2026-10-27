@@ -171,10 +171,10 @@ Legend: ✅ exists · 🟡 partial (modeled without API, or incomplete) · ❌ m
 
 ## 8. Open design decisions
 
-1. **Task vs Activity.** The vision lists both; the code has only `Activity` under `Goal`. Decide whether they are the same thing or whether "activity" means what is happening in a zone and "task" means assigned work.
-2. **Invitations to a site.** Invitations currently target the organization with a role. The flow "I was invited to a site" needs a project on the invitation, or a `ProjectAccess` created on acceptance.
-3. **Default roles.** Which system roles to seed per organization (Owner, Manager, Worker?) and their permissions. How the dashboard's onboarding roles (Owner/Developer, General contractor, Architect/Engineer, Subcontractor) map to them.
-4. **Worker vs user.** Can a site worker exist without a user account (for example a crew member who never logs in)? This affects profiles, assignment and location.
+1. **Task vs Activity.** RESOLVED (ADR 0001): same thing. Task (UI) = `Activity` under a `Goal` (phase), assigned to a `ProjectAccess`. A zone concept, if needed, comes with plans and zones (item 6).
+2. **Invitations to a site.** RESOLVED (`.agents/contracts/v1-api.md` §3): the invitation targets the organization with a role and an optional `project`; accepting creates the membership and, if a project is set, a `ProjectAccess`, in one transaction.
+3. **Default roles.** RESOLVED (contract §8, ADR 0002): five seeded roles per organization (Owner, Administrator, Member, Worker, Finance placeholder) with a fixed permission matrix. The dashboard's onboarding answers do not map to roles: they are a descriptive hint (`intent`, `businessType`) stored via `PUT /api/onboarding`; roles come only from creating an organization (Owner) or from an invitation. Sub-questions still open for the user are listed in contract §10 (Q1, Q2, Q7).
+4. **Worker vs user.** v1 stance (ADR 0003): assignees must have an account; no account-less workers and no public marketplace. Revisit when a real crew-without-login need appears.
 5. **Location model.** Start with check-in/attendance per zone, or real-time GPS? Check-in per zone is the suggested first step.
 6. **Plans and zones.** How zones are drawn on a PDF plan (polygons over a page, floor levels), and where files are stored (S3 or similar).
 7. **Production topology.** CORS vs a reverse proxy serving dashboard and API on the same site.
