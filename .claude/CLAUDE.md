@@ -43,4 +43,4 @@ Run each from inside its subproject.
 
 - All UI is bilingual EN/ES in both frontends: add every user-facing string in both languages. Code, identifiers and commit messages are in English.
 - Backend: four-space indent, no formatter, match nearby code; commits are short, imperative, lowercase. Dashboard/landing: Conventional Commits (`feat(scope): ...`). No AI/Co-Authored-By attribution anywhere.
-- AI tooling artifacts (`.agents/`, `.atl/`, `specs/`, `odd/`, `skills-lock.json`) are not product code; the dashboard repo gitignores them, so don't re-add them there.
+- Agent tooling is tracked in each subproject: skills (`.agents/skills/`, linked from `.claude/skills/`, pinned in `skills-lock.json`), `AGENTS.md` and `CLAUDE.md`. Plans and specs (`specs/`, `.specify/`, `.agents/specs/`), `.claude/settings.local.json` and the skill registry (`.atl/`) are not committed.
