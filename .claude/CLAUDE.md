@@ -36,8 +36,8 @@ Run each from inside its subproject.
 - **How the pieces connect:** the dashboard calls the backend under `/api`. In dev, Vite proxies `/api` to `localhost:8080` (`VITE_API_PROXY_TARGET`); the backend's `FRONTEND_URL` defaults to `localhost:5173`. The landing page is static and does not call the backend.
 - **Backend:** modular monolith in `src/main/java/org/andre/construx` with `modules/{identity,organization,project}` and `shared` (config, security, validation, errors). Layering is controllers → services → Spring Data repositories, with entity invariants inside the model classes. Vocabulary mapping: Company = `Organization`, Site = `Project`, site staff = `ProjectAccess`, task = `Activity` (under a `Goal`).
 - **Auth** is the only finished vertical: HttpOnly cookies (JWT access token + rotating opaque refresh token), a DB `auth_session` row checked on every request, and CSRF required on all unsafe requests (token from `GET /api/auth/csrf`). Contract details live in `construx/docs/security.md` and `auth.md`.
-- **Not wired yet:** organizations, projects, goals and activities exist only as JPA entities with no services or endpoints. `DomainAuthorization` is tested but nothing calls it. The dashboard home view uses mock data.
-- **Known pitfalls:** CORS config is not actually active (dev works only via the Vite proxy); the user table is literally named `"user-account"`; no Flyway/Liquibase.
+- **v1 domain API:** organizations (seeded roles from `construx/src/main/resources/seeded-roles.properties`), invitations, sites, site access, goals and activities have services and endpoints; every call goes through `MembershipGuard` (404 for non-members) and `DomainAuthorization` (403). Contracts: `construx/docs/organizations.md`, `construx/docs/projects.md`, `.agents/contracts/v1-api.md`. The dashboard uses them; `features/home/HomePage.tsx` is unrouted mock data.
+- **Known pitfalls:** CORS config is not actually active (dev works only via the Vite proxy); the user table is literally named `"user-account"`. Schema changes are Flyway migrations in `construx/src/main/resources/db/migration` (`V1`..`V8`).
 
 ## Conventions
 
