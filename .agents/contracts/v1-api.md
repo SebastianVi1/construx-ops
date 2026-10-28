@@ -232,6 +232,16 @@ Entity change: `Project` gains `address` (nullable, max 255), `startDate` (nulla
 
 No hard delete in v1: set `status` to `ARCHIVED`.
 
+Site expenses (`modules/finance`, `V14__site_expenses.sql`), detail in `construx/docs/projects.md`:
+
+| Method and path | Permission / scope | Notes |
+|---|---|---|
+| `GET /api/organizations/{orgId}/projects/{projectId}/budget` | `VIEW_BUDGET` | 200 `{allocatedBudget, spent, remaining, byCategory[{category, amount}]}`; remaining = allocatedBudget - spent, negative on overrun, null without a budget. |
+| `GET /api/organizations/{orgId}/projects/{projectId}/expenses` | `VIEW_BUDGET` | 200 array `{id, projectId, amount, spentOn, description, category}`, newest first. |
+| `POST /api/organizations/{orgId}/projects/{projectId}/expenses` | `MANAGE_BUDGET` | Body `{amount (> 0, 12.2), spentOn, description (1..160), category (MATERIALS\|LABOR\|EQUIPMENT\|OTHER)}`. 201. |
+| `PATCH /api/organizations/{orgId}/projects/{projectId}/expenses/{expenseId}` | `MANAGE_BUDGET` | Any subset of the create fields. 200. |
+| `DELETE /api/organizations/{orgId}/projects/{projectId}/expenses/{expenseId}` | `MANAGE_BUDGET` | 204. |
+
 Errors for all: 400 (validation, date order), 403 (permission or scope, including Worker without access to that project), 404 (non-member, other tenant, unknown id).
 
 ---
