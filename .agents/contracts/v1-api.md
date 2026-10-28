@@ -310,6 +310,45 @@ Task = Activity (ADR 0001). Required assignee: `Activity.assigneeAccess` is NOT 
 
 (`...` = `/api/organizations/{orgId}/projects/{projectId}/goals/{goalId}`.)
 
+## 7b. Material prices (ADR 0004)
+
+The organization's own catalog: Material, Supplier, PriceObservation (see `GLOSSARY.md`). Module `modules/pricing`, schema `V11__material_prices.sql`, detail in `construx/docs/pricing.md`. Permissions: reads `VIEW_PRICES`, writes `MANAGE_PRICES`, both `ORGANIZATION` scope only. Section 0.1 applies: non-member -> 404, then the resource is resolved inside the tenant (another tenant's id -> 404), then 403.
+
+Money is a JSON string with two decimals, in MXN including IVA. Dates are ISO `yyyy-mm-dd`.
+
+`MaterialResponse`:
+```json
+{ "id": "uuid", "name": "Cemento gris", "unit": "BAG", "category": "CEMENT_AGGREGATES", "brand": "Cemex",
+  "archivedAt": null, "cheapestSupplierId": "uuid",
+  "latestPrices": [ { "id": "uuid", "materialId": "uuid", "supplierId": "uuid", "supplierName": "Home Depot",
+    "supplierBranch": "Periférico Sur", "price": "245.50", "observedOn": "2026-10-01", "sku": null,
+    "source": "MANUAL", "createdAt": "2026-10-01T18:00:00Z", "cheapest": true } ] }
+```
+`unit`: `PIECE | BAG | SQUARE_METER | CUBIC_METER | KILOGRAM | LITER | METER`. `category`: `CEMENT_AGGREGATES | STEEL | WOOD | ELECTRICAL | PLUMBING | FINISHES`. `latestPrices` holds one entry per non-archived supplier: its newest observation (`observedOn` desc, then the latest recorded). Entries are ordered by price ascending; every entry at the lowest price has `cheapest: true`. `MaterialDetailResponse` = `MaterialResponse` + `history`: every observation, newest first, without `cheapest`. `SupplierResponse`: `{ id, name, branch, website, archivedAt }`.
+
+| Method and path | Permission | Notes |
+|---|---|---|
+| `GET /api/organizations/{orgId}/materials` | `VIEW_PRICES` | Query `query` (contains over name and brand, case-insensitive), `category`, `includeArchived` (default false). Ordered by name. 200 array. |
+| `GET /api/organizations/{orgId}/materials/{materialId}` | `VIEW_PRICES` | Also for archived materials. 200 `MaterialDetailResponse`. |
+| `POST /api/organizations/{orgId}/materials` | `MANAGE_PRICES` | Body `{name, unit, category, brand?}`. 201. Duplicate -> 409 `DUPLICATE_MATERIAL`. |
+| `PATCH /api/organizations/{orgId}/materials/{materialId}` | `MANAGE_PRICES` | `{name?, unit?, category?, brand?}`; `brand: ""` clears it. 200. Duplicate -> 409 `DUPLICATE_MATERIAL`. |
+| `POST /api/organizations/{orgId}/materials/{materialId}/archive` | `MANAGE_PRICES` | Idempotent. 200. |
+| `GET /api/organizations/{orgId}/suppliers` | `VIEW_PRICES` | Query `includeArchived` (default false). Ordered by name. 200 array. |
+| `POST /api/organizations/{orgId}/suppliers` | `MANAGE_PRICES` | Body `{name, branch?, website?}`. 201. Duplicate -> 409 `DUPLICATE_SUPPLIER`. |
+| `PATCH /api/organizations/{orgId}/suppliers/{supplierId}` | `MANAGE_PRICES` | `{name?, branch?, website?}`; `""` clears an optional field. 200. |
+| `POST /api/organizations/{orgId}/suppliers/{supplierId}/archive` | `MANAGE_PRICES` | Idempotent. 200. |
+| `POST /api/organizations/{orgId}/price-observations` | `MANAGE_PRICES` | Body `{materialId, supplierId, price, observedOn, sku?}`. 201, `source` = `MANUAL`. Archived material -> 409 `ARCHIVED_MATERIAL`; archived supplier -> 409 `ARCHIVED_SUPPLIER`. |
+| `DELETE /api/organizations/{orgId}/price-observations/{observationId}` | `MANAGE_PRICES` | 204. No PUT or PATCH (405): observations are immutable. |
+| `POST /api/organizations/{orgId}/price-observations/import?dryRun=true\|false` | `MANAGE_PRICES` | Multipart part `file` (UTF-8 CSV, max 1 MB, 2000 rows; header `material,unit,category,brand,supplier,branch,price,observed_on,sku`). 200 `ImportReport` (dry run, or import when every row is valid, `imported: true`, `source` = `CSV`). Any invalid row with `dryRun=false` -> 422 with the same report, nothing written. Bad header, size, rows or encoding -> 400 `VALIDATION_FAILED`. Detail in `construx/docs/pricing.md`. |
+
+Rules:
+- Uniqueness per organization, ignoring case and repeated, leading or trailing whitespace: Material on name + unit + brand, Supplier on name + branch. It is stored as `normalized_key` with a unique `(organization_id, normalized_key)` constraint, and archived rows keep their key.
+- `price`: number or decimal string, > 0, at most 2 decimals, below 10^10 (`numeric(12,2)`), else 400 `INVALID_ARGUMENT`. `observedOn` cannot be after today in UTC (400).
+- `website`: `http` or `https` URL with a host (400).
+- Materials and suppliers are never deleted, only archived. Archived rows are hidden from lists by default and cannot receive new observations.
+- CSV import: `ImportReport` = `{ valid, imported, summary: { rows, newMaterials, newSuppliers, observations }, rows: [ { line, material, supplier, branch, price, observedOn, newMaterial, newSupplier, errors: [ { field, code } ] } ] }`. `unit` and `category` accept the enum codes or the Spanish labels (case and accent insensitive). Matching uses the same normalized keys as manual creation; missing materials and suppliers are created, archived matches are row errors (`ARCHIVED_MATERIAL`, `ARCHIVED_SUPPLIER`). Row codes: `REQUIRED`, `INVALID`, `FUTURE_DATE`, `TOO_MANY_DECIMALS`, `ARCHIVED_MATERIAL`, `ARCHIVED_SUPPLIER`, `COLUMNS`. One transaction, all or nothing.
+- Errors: 400, 403, 404, 405, 409, 422 as noted. A pricing 409 body has the usual problem shape with a readable `detail` and the codes above.
+
 Tenant and rules:
 - Resolve by `(organizationId, projectId, goalId, activityId)`: wrong parent or other tenant -> 404.
 - `assigneeAccessId` is resolved within `(organizationId, projectId)`: access of another project or tenant -> 404. Assignee must be an ACTIVE member (entity -> 400).
@@ -326,7 +365,7 @@ Five system roles are created for every new organization by the `Organization` c
 
 Entity invariant (Backend Dev): today `OrganizationRole.systemRole` means "Owner" (`OrganizationMembership` rejects a `systemRole` for anyone but the creator and blocks suspend/leave). Do NOT mark the other four roles `systemRole`. Add a second flag `seeded` (boolean, default false): seeded roles cannot be renamed, regranted or revoked (same guards as `systemRole` in `rename/grant/revoke`), and codes `ADMINISTRATOR`, `MEMBER`, `WORKER`, `FINANCE` become reserved for custom roles like `OWNER`. Factory: `OrganizationRole.seeded(organization, code, name, grants)` where each grant goes through `Permission.changeScope` validation.
 
-Scopes: `ORG` = `ORGANIZATION`, `PRJ` = `PROJECT` (needs a `ProjectAccess`), `OWN` = assignee is the caller. `-` = not granted. All pairs below pass the `Permission.changeScope` rules (admin actions need `ORG`; project and goal actions cannot be `OWN`; `ASSIGN_ACTIVITY` cannot be `OWN`).
+Scopes: `ORG` = `ORGANIZATION`, `PRJ` = `PROJECT` (needs a `ProjectAccess`), `OWN` = assignee is the caller. `-` = not granted. All pairs below pass the `Permission.changeScope` rules (admin actions need `ORG`; project and goal actions cannot be `OWN`; `ASSIGN_ACTIVITY` cannot be `OWN`; price actions need `ORG`).
 
 | Action | Owner `OWNER` | Administrator `ADMINISTRATOR` | Member `MEMBER` (office) | Worker `WORKER` (field) | Finance `FINANCE` (placeholder) |
 |---|---|---|---|---|---|
@@ -340,12 +379,15 @@ Scopes: `ORG` = `ORGANIZATION`, `PRJ` = `PROJECT` (needs a `ProjectAccess`), `OW
 | `VIEW_ACTIVITY` | ORG | ORG | ORG | PRJ | - |
 | `MANAGE_ACTIVITY` | ORG | ORG | ORG | OWN | - |
 | `ASSIGN_ACTIVITY` | ORG | ORG | ORG | - | - |
+| `VIEW_PRICES` | ORG | ORG | ORG | - | ORG |
+| `MANAGE_PRICES` | ORG | ORG | - | - | ORG |
 
 Notes:
 - Owner is built by the existing `OrganizationRole.owner()` (every action at `ORG`).
 - Administrator "all except billing, organization deletion and Owner transfer": the enum has no billing or deletion action, so those currently live under `MANAGE_ORGANIZATION`. Until the enum is split, Administrator does not get `MANAGE_ORGANIZATION`, which also means it cannot rename the organization (Q2). Owner transfer does not exist in v1; the Owner role can never be assigned by invitation or `changeRole`.
 - When role-management endpoints are built later (not in v1), the rule must be "a caller cannot grant an action/scope they do not hold" because Administrator has `MANAGE_ROLES`.
-- Finance holds only `VIEW_PROJECT` now; finance actions are added to the enum and to this role with the finance module (needs a data migration for existing organizations).
+- Finance holds `VIEW_PROJECT` plus the material price actions; finance actions are added to the enum and to this role with the finance module (needs a data migration for existing organizations).
+- `VIEW_PRICES` and `MANAGE_PRICES` (material prices, ADR 0004) were added after launch: `V10__price_permissions.sql` backfills them into the Owner and seeded roles of existing organizations; custom roles get nothing.
 - Worker sees every task on their sites (`VIEW_ACTIVITY` = `PRJ`) because site-level awareness is the product pitch; Q7 if this should be `OWN`.
 
 Behavior check per role (acceptance cases for QA):
