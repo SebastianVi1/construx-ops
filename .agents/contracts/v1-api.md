@@ -261,21 +261,23 @@ Rules and errors:
 
 ## 6. Goals (phases)
 
-Entity change: `Goal` gains `rename` and `changeDueAt` methods with invariants: name 1..160; a new `dueAt` may not be before the latest `dueAt` of its activities (400 `INVALID_ARGUMENT`).
+Entity change: `Goal` gains `rename`, `changeStartAt`, `changeDueAt`, `changeDates` and `shift` methods with invariants: name 1..160; `startAt <= dueAt`; a new `startAt` may not be after the earliest `startAt` of its activities and a new `dueAt` may not be before the latest `dueAt` of its activities (400 `INVALID_ARGUMENT`). When a PATCH sends both dates they are checked as a pair. Migration `V9__start_dates.sql` backfilled existing phases with `startAt = min(earliest task dueAt, phase dueAt)`.
 
 `GoalResponse`:
 ```json
-{ "id": "uuid", "projectId": "uuid", "name": "Foundations", "dueAt": "2026-12-15T23:59:00Z",
+{ "id": "uuid", "projectId": "uuid", "name": "Foundations",
+  "startAt": "2026-11-01T00:00:00Z", "dueAt": "2026-12-15T23:59:00Z", "color": null,
   "activityCount": 5, "doneCount": 2, "completed": false }
 ```
 `completed` = existing `Goal.isCompleted()` (has activities and all DONE).
 
 | Method and path | Permission / scope | Notes |
 |---|---|---|
-| `POST /api/organizations/{orgId}/projects/{projectId}/goals` | `MANAGE_GOAL` on the project | Body `{name, dueAt}` both required. 201. |
+| `POST /api/organizations/{orgId}/projects/{projectId}/goals` | `MANAGE_GOAL` on the project | Body `{name, startAt, dueAt, color?}`; `color` is optional. 201. |
 | `GET /api/organizations/{orgId}/projects/{projectId}/goals` | `VIEW_GOAL` on the project | Ordered by `dueAt`. 200 array. |
 | `GET /api/organizations/{orgId}/projects/{projectId}/goals/{goalId}` | `VIEW_GOAL` on the project | 200. |
-| `PATCH /api/organizations/{orgId}/projects/{projectId}/goals/{goalId}` | `MANAGE_GOAL` on the project | `{name?, dueAt?}`. 200. |
+| `PATCH /api/organizations/{orgId}/projects/{projectId}/goals/{goalId}` | `MANAGE_GOAL` on the project | `{name?, startAt?, dueAt?, color?}`. 200. |
+| `POST /api/organizations/{orgId}/projects/{projectId}/goals/{goalId}/shift` | `MANAGE_GOAL` on the project | Body `{ "days": int }`, non-zero, -3650..3650. Moves the goal's `startAt`/`dueAt` and every activity's `startAt`/`dueAt` by `days` in one transaction. 200 `GoalResponse`. `days = 0` -> 400 `INVALID_ARGUMENT`; missing or out of range -> 400 `VALIDATION_FAILED`. |
 | `DELETE /api/organizations/{orgId}/projects/{projectId}/goals/{goalId}` | `MANAGE_GOAL` on the project | 204. Goal has activities -> 409 `STATE_CONFLICT`. |
 
 Tenant: goal resolved by `(organizationId, projectId, goalId)`. Errors: 400, 403, 404, 409 as noted. `activityCount`/`doneCount` are `null` when the caller lacks `VIEW_ACTIVITY` on the project.
@@ -290,7 +292,8 @@ Task = Activity (ADR 0001). Required assignee: `Activity.assigneeAccess` is NOT 
 ```json
 {
   "id": "uuid", "goalId": "uuid", "projectId": "uuid", "name": "Pour slab level 1",
-  "dueAt": "2026-12-01T18:00:00Z", "status": "TODO", "completedAt": null,
+  "startAt": "2026-11-20T08:00:00Z", "dueAt": "2026-12-01T18:00:00Z", "color": "#1e90ff",
+  "status": "TODO", "completedAt": null,
   "assignee": { "accessId": "uuid", "membershipId": "uuid", "fullName": "Ana Perez" }
 }
 ```
@@ -298,10 +301,10 @@ Task = Activity (ADR 0001). Required assignee: `Activity.assigneeAccess` is NOT 
 
 | Method and path | Permission / scope | Notes |
 |---|---|---|
-| `POST /api/organizations/{orgId}/projects/{projectId}/goals/{goalId}/activities` | `MANAGE_ACTIVITY` on the project (assignee arg `null`) AND `ASSIGN_ACTIVITY` on the project | Body `{name, dueAt, assigneeAccessId}` all required. 201. |
+| `POST /api/organizations/{orgId}/projects/{projectId}/goals/{goalId}/activities` | `MANAGE_ACTIVITY` on the project (assignee arg `null`) AND `ASSIGN_ACTIVITY` on the project | Body `{name, startAt, dueAt, assigneeAccessId, color?}`; all but `color` required. 201. |
 | `GET /api/organizations/{orgId}/projects/{projectId}/goals/{goalId}/activities` | `VIEW_ACTIVITY`, filtered by scope | Query `status`, `assigneeAccessId` optional. 200 array ordered by `dueAt`. |
 | `GET .../activities/{activityId}` | `VIEW_ACTIVITY` on the project | 200. |
-| `PATCH .../activities/{activityId}` | `MANAGE_ACTIVITY` on the project (assignee arg `null`) | `{name?, dueAt?}`. Not for status or assignee. 200. |
+| `PATCH .../activities/{activityId}` | `MANAGE_ACTIVITY` on the project (assignee arg `null`) | `{name?, startAt?, dueAt?, color?}`. Not for status or assignee. Both dates are checked as a pair. 200. |
 | `PUT .../activities/{activityId}/assignee` | `ASSIGN_ACTIVITY` on the project | Body `{ "assigneeAccessId": "uuid" }`. 200. |
 | `POST .../activities/{activityId}/start` | `MANAGE_ACTIVITY` with the current assignee's membership id | TODO -> IN_PROGRESS. 200. |
 | `POST .../activities/{activityId}/complete` | `MANAGE_ACTIVITY` with the current assignee's membership id | TODO or IN_PROGRESS -> DONE, sets `completedAt` to server time. 200. |
@@ -352,12 +355,14 @@ Rules:
 Tenant and rules:
 - Resolve by `(organizationId, projectId, goalId, activityId)`: wrong parent or other tenant -> 404.
 - `assigneeAccessId` is resolved within `(organizationId, projectId)`: access of another project or tenant -> 404. Assignee must be an ACTIVE member (entity -> 400).
-- `dueAt` may not be after the goal's `dueAt` (entity -> 400 `INVALID_ARGUMENT`). PATCH of `dueAt` re-checks it.
+- `startAt <= dueAt`, `startAt` may not be before the goal's `startAt` and `dueAt` may not be after the goal's `dueAt` (entity -> 400 `INVALID_ARGUMENT`). PATCH re-checks both dates together. V9 backfilled existing tasks with `startAt = dueAt`.
 - Transitions: `start` on a non-TODO activity -> 409; `complete` on a DONE activity -> 409. Reopening a DONE task is not in v1 (Q4).
 - A Worker (`MANAGE_ACTIVITY` = `OWN`) passes `start`/`complete` only on tasks assigned to them; on create, patch, reassign and delete the `null` assignee argument makes `OWN` deny -> 403. A Worker's `GET` of the list is filtered to the project's tasks (`VIEW_ACTIVITY` = `PROJECT`); the single-activity GET passes if `PROJECT` access holds.
 - Errors: 400, 403, 404, 409 as noted.
 
 ---
+
+`color` (goals and activities, migration V10): the bar color in the schedule as lowercase `#rrggbb`, or `null` for the default. POST and PATCH accept `#rrggbb` in any case; PATCH `""` resets it to `null`; an omitted `color` keeps the stored one; anything else -> 400 `VALIDATION_FAILED`. It needs the same permission as the rest of the PATCH.
 
 ## 8. Seeded permission matrix
 
