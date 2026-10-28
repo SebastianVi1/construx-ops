@@ -148,7 +148,7 @@ Legend: ✅ exists · 🟡 partial (modeled without API, or incomplete) · ❌ m
 | Member management and invitations | 🟡 | Entities only; invitations target the organization, not a site |
 | Assign workers to sites | 🟡 | `ProjectAccess`, no API |
 | Worker profiles | 🟡 | Only the unmerged `feat/user-profile` (name, phone); no trade or specialty |
-| Sites / projects | 🟡 | `Project` has only a name; no address, dates, status, client or budget |
+| Sites / projects | 🟡 | Address, dates, status and a budget split into phase and task budgets (USD); no client |
 | Activities, tasks and progress | 🟡 | `Goal` → `Activity`, no API, no progress calculation |
 | Onboarding flow (invited vs Owner vs Worker) | ❌ | Dashboard asks the role but keeps it in `localStorage` |
 | Worker location on site | ❌ | No check-in, attendance or location |
