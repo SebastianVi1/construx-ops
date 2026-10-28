@@ -315,7 +315,7 @@ Task = Activity (ADR 0001). Required assignee: `Activity.assigneeAccess` is NOT 
 
 ## 7b. Material prices (ADR 0004)
 
-The organization's own catalog: Material, Supplier, PriceObservation (see `GLOSSARY.md`). Module `modules/pricing`, schema `V11__material_prices.sql`, detail in `construx/docs/pricing.md`. Permissions: reads `VIEW_PRICES`, writes `MANAGE_PRICES`, both `ORGANIZATION` scope only. Section 0.1 applies: non-member -> 404, then the resource is resolved inside the tenant (another tenant's id -> 404), then 403.
+The organization's own catalog: Material, Supplier, PriceObservation (see `GLOSSARY.md`). Module `modules/pricing`, schema `V12__material_prices.sql`, detail in `construx/docs/pricing.md`. Permissions: reads `VIEW_PRICES`, writes `MANAGE_PRICES`, both `ORGANIZATION` scope only. Section 0.1 applies: non-member -> 404, then the resource is resolved inside the tenant (another tenant's id -> 404), then 403.
 
 Money is a JSON string with two decimals, in MXN including IVA. Dates are ISO `yyyy-mm-dd`.
 
@@ -392,7 +392,7 @@ Notes:
 - Administrator "all except billing, organization deletion and Owner transfer": the enum has no billing or deletion action, so those currently live under `MANAGE_ORGANIZATION`. Until the enum is split, Administrator does not get `MANAGE_ORGANIZATION`, which also means it cannot rename the organization (Q2). Owner transfer does not exist in v1; the Owner role can never be assigned by invitation or `changeRole`.
 - When role-management endpoints are built later (not in v1), the rule must be "a caller cannot grant an action/scope they do not hold" because Administrator has `MANAGE_ROLES`.
 - Finance holds `VIEW_PROJECT` plus the material price actions; finance actions are added to the enum and to this role with the finance module (needs a data migration for existing organizations).
-- `VIEW_PRICES` and `MANAGE_PRICES` (material prices, ADR 0004) were added after launch: `V10__price_permissions.sql` backfills them into the Owner and seeded roles of existing organizations; custom roles get nothing.
+- `VIEW_PRICES` and `MANAGE_PRICES` (material prices, ADR 0004) were added after launch: `V11__price_permissions.sql` backfills them into the Owner and seeded roles of existing organizations; custom roles get nothing.
 - Worker sees every task on their sites (`VIEW_ACTIVITY` = `PRJ`) because site-level awareness is the product pitch; Q7 if this should be `OWN`.
 
 Behavior check per role (acceptance cases for QA):
