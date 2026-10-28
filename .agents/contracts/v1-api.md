@@ -210,24 +210,25 @@ Deferred: preview-before-login endpoint, "my pending invitations" by email, reac
 
 ## 4. Projects (sites)
 
-Entity change: `Project` gains `address` (nullable, max 255), `startDate` (nullable `LocalDate`), `expectedEndDate` (nullable `LocalDate`), `status` (`PLANNED` default, `ACTIVE`, `ON_HOLD`, `COMPLETED`, `ARCHIVED`). Invariant in the entity: `expectedEndDate` not before `startDate` (400 `INVALID_ARGUMENT`). Client and budget are not part of v1 (CRM and finance modules).
+Entity change: `Project` gains `address` (nullable, max 255), `startDate` (nullable `LocalDate`), `expectedEndDate` (nullable `LocalDate`), `status` (`PLANNED` default, `ACTIVE`, `ON_HOLD`, `COMPLETED`, `ARCHIVED`). Invariant in the entity: `expectedEndDate` not before `startDate` (400 `INVALID_ARGUMENT`). Client is not part of v1 (CRM module). `allocatedBudget` (nullable `numeric(14,2)`, `>= 0`, `V13__project_budget.sql`) is the site's allocated budget, set only through its own endpoint.
 
 `ProjectResponse`:
 ```json
 {
   "id": "uuid", "name": "Torre Norte", "address": "Av. Siempre Viva 742",
   "startDate": "2026-11-01", "expectedEndDate": "2027-05-30", "status": "ACTIVE",
-  "activityCount": 12, "doneCount": 4
+  "activityCount": 12, "doneCount": 4, "allocatedBudget": 250000.50
 }
 ```
-`activityCount`/`doneCount` are `null` when the caller does not hold `VIEW_ACTIVITY` covering the project (e.g. Finance).
+`activityCount`/`doneCount` are `null` when the caller does not hold `VIEW_ACTIVITY` covering the project (e.g. Finance). `allocatedBudget` is `null` when unset or when the caller lacks `VIEW_BUDGET` (Member, Worker).
 
 | Method and path | Permission / scope | Notes |
 |---|---|---|
 | `POST /api/organizations/{orgId}/projects` | `MANAGE_PROJECT` / `ORGANIZATION` (`projectId` null) | Body `{name (req, 1..160), address?, startDate?, expectedEndDate?, status?}`. 201. |
 | `GET /api/organizations/{orgId}/projects` | `VIEW_PROJECT`, filtered by scope (0.1) | Query `status` optional; default excludes `ARCHIVED`. A Worker only gets projects where they have `ProjectAccess`. 200 array. |
 | `GET /api/organizations/{orgId}/projects/{projectId}` | `VIEW_PROJECT` on the project | 200. |
-| `PATCH /api/organizations/{orgId}/projects/{projectId}` | `MANAGE_PROJECT` on the project | Any subset of the create fields. 200. |
+| `PATCH /api/organizations/{orgId}/projects/{projectId}` | `MANAGE_PROJECT` on the project | Any subset of the create fields. 200. Never changes the budget. |
+| `PUT /api/organizations/{orgId}/projects/{projectId}/budget` | `MANAGE_BUDGET` / `ORGANIZATION` | Body `{allocatedBudget: number\|null}`; null clears. Negative, more than 2 decimals or more than 12 integer digits -> 400. 200 `ProjectResponse`. |
 
 No hard delete in v1: set `status` to `ARCHIVED`.
 
@@ -386,6 +387,8 @@ Scopes: `ORG` = `ORGANIZATION`, `PRJ` = `PROJECT` (needs a `ProjectAccess`), `OW
 | `ASSIGN_ACTIVITY` | ORG | ORG | ORG | - | - |
 | `VIEW_PRICES` | ORG | ORG | ORG | - | ORG |
 | `MANAGE_PRICES` | ORG | ORG | - | - | ORG |
+| `VIEW_BUDGET` | ORG | ORG | - | - | ORG |
+| `MANAGE_BUDGET` | ORG | ORG | - | - | ORG |
 
 Notes:
 - Owner is built by the existing `OrganizationRole.owner()` (every action at `ORG`).
@@ -393,6 +396,7 @@ Notes:
 - When role-management endpoints are built later (not in v1), the rule must be "a caller cannot grant an action/scope they do not hold" because Administrator has `MANAGE_ROLES`.
 - Finance holds `VIEW_PROJECT` plus the material price actions; finance actions are added to the enum and to this role with the finance module (needs a data migration for existing organizations).
 - `VIEW_PRICES` and `MANAGE_PRICES` (material prices, ADR 0004) were added after launch: `V11__price_permissions.sql` backfills them into the Owner and seeded roles of existing organizations; custom roles get nothing.
+- `VIEW_BUDGET` and `MANAGE_BUDGET` (site budget) are organization-scope only; `V13__project_budget.sql` backfills them into Owner, Administrator and Finance of existing organizations; custom roles get nothing.
 - Worker sees every task on their sites (`VIEW_ACTIVITY` = `PRJ`) because site-level awareness is the product pitch; Q7 if this should be `OWN`.
 
 Behavior check per role (acceptance cases for QA):
