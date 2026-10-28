@@ -228,7 +228,7 @@ Entity change: `Project` gains `address` (nullable, max 255), `startDate` (nulla
 | `GET /api/organizations/{orgId}/projects` | `VIEW_PROJECT`, filtered by scope (0.1) | Query `status` optional; default excludes `ARCHIVED`. A Worker only gets projects where they have `ProjectAccess`. 200 array. |
 | `GET /api/organizations/{orgId}/projects/{projectId}` | `VIEW_PROJECT` on the project | 200. |
 | `PATCH /api/organizations/{orgId}/projects/{projectId}` | `MANAGE_PROJECT` on the project | Any subset of the create fields. 200. Never changes the budget. |
-| `PUT /api/organizations/{orgId}/projects/{projectId}/budget` | `MANAGE_BUDGET` / `ORGANIZATION` | Body `{allocatedBudget: number\|null}`; null clears. Negative, more than 2 decimals or more than 12 integer digits -> 400. 200 `ProjectResponse`. |
+| `PUT /api/organizations/{orgId}/projects/{projectId}/budget` | `MANAGE_BUDGET` / `ORGANIZATION` | Body `{allocatedBudget: number\|null}`, field required; null clears, a missing field -> 400 `INVALID_ARGUMENT`. Negative, more than 2 decimals or more than 12 integer digits -> 400. 200 `ProjectResponse`. |
 
 No hard delete in v1: set `status` to `ARCHIVED`.
 
