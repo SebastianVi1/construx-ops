@@ -24,7 +24,7 @@ Every endpoint under `/api/organizations/{organizationId}/...` carries the tenan
 Rules for the arguments of `require`:
 
 - `projectId`: pass the project whenever the operation concerns a project, goal or activity. `PROJECT` scope only passes if the caller has a `ProjectAccess` on it. Pass `null` for organization-level operations and for creating a project.
-- `assigneeMembershipId`: pass the membership of the activity's current assignee **only** for `start` and `complete`. Pass `null` for every other operation, which makes `OWN` scope deny by construction (a Worker cannot create, edit, reassign or delete tasks).
+- `assigneeMembershipId`: pass the caller's membership **only** for `get`, `start` and `complete`, and only when the caller is in the task's team. Pass `null` for every other operation, which makes `OWN` scope deny by construction (a Worker cannot create, edit, reassign or delete tasks).
 - Permission is read from the database on each call, never from the JWT.
 
 **Gap in current code (Backend Dev, `shared/security`)**: `require` is a yes/no gate and cannot filter lists. Add one read method:
@@ -237,10 +237,13 @@ Site expenses (`modules/finance`, `V14__site_expenses.sql`), detail in `construx
 | Method and path | Permission / scope | Notes |
 |---|---|---|
 | `GET /api/organizations/{orgId}/projects/{projectId}/budget` | `VIEW_BUDGET` | 200 `{allocatedBudget, spent, remaining, allocatedToPhases, unallocated, byCategory[{category, amount}]}`; remaining = allocatedBudget - spent, negative on overrun, null without a budget; unallocated = allocatedBudget - allocatedToPhases, null without a budget. |
-| `GET /api/organizations/{orgId}/projects/{projectId}/expenses` | `VIEW_BUDGET` | 200 array `{id, projectId, amount, spentOn, description, category}`, newest first. |
+| `GET /api/organizations/{orgId}/projects/{projectId}/expenses` | `VIEW_BUDGET` | 200 array `{id, projectId, activityId, createdByMembershipId, amount, spentOn, description, category}`, newest first; `activityId`/`createdByMembershipId` null when unset. |
 | `POST /api/organizations/{orgId}/projects/{projectId}/expenses` | `MANAGE_BUDGET` (Owner, Finance; not Administrator since V15) | Body `{amount (> 0, 12.2), spentOn, description (1..160), category (MATERIALS\|LABOR\|EQUIPMENT\|OTHER)}`. 201. |
-| `PATCH /api/organizations/{orgId}/projects/{projectId}/expenses/{expenseId}` | `MANAGE_BUDGET` | Any subset of the create fields. 200. |
-| `DELETE /api/organizations/{orgId}/projects/{projectId}/expenses/{expenseId}` | `MANAGE_BUDGET` | 204. |
+| `PATCH /api/organizations/{orgId}/projects/{projectId}/expenses/{expenseId}` | `MANAGE_BUDGET`, or the current Lead of the expense's task when they recorded it | Any subset of the create fields. 200. |
+| `DELETE /api/organizations/{orgId}/projects/{projectId}/expenses/{expenseId}` | `MANAGE_BUDGET`, or the current Lead of the expense's task when they recorded it | 204. |
+| `GET .../projects/{projectId}/goals/{goalId}/activities/{activityId}/expenses` | `VIEW_BUDGET` or the task's current Lead | 200 array, same shape, newest first. |
+| `POST .../projects/{projectId}/goals/{goalId}/activities/{activityId}/expenses` | `MANAGE_BUDGET` or the task's current Lead | Same body as the site POST; charged to the task and to the site. 201. |
+| `GET .../projects/{projectId}/goals/{goalId}/activities/{activityId}/budget` | `VIEW_BUDGET` or the task's current Lead | 200 `{allocatedBudget, spent, remaining}`; overrun allowed (negative remaining); null remaining without a task budget. |
 
 Errors for all: 400 (validation, date order), 403 (permission or scope, including Worker without access to that project), 404 (non-member, other tenant, unknown id).
 
@@ -248,7 +251,7 @@ Errors for all: 400 (validation, date order), 403 (permission or scope, includin
 
 ## 5. Project access (assignment of people to sites)
 
-Assignees must have an account (no account-less workers in v1, ADR 0003). People enter a site through `ProjectAccess` and tasks are assigned to a `ProjectAccess`.
+Assignees must have an account (no account-less workers in v1, ADR 0003). People enter a site through `ProjectAccess` and a task's team is made of `ProjectAccess` rows, each with a task role (ADR 0005).
 
 `AccessResponse`:
 ```json
@@ -265,7 +268,7 @@ Assignees must have an account (no account-less workers in v1, ADR 0003). People
 
 Rules and errors:
 - POST: membership resolved by `(organizationId, membershipId)` -> 404 if absent. Membership must be ACTIVE (entity -> 400). Already has access -> 409 `DATA_CONFLICT`.
-- DELETE: access resolved by `(organizationId, projectId, accessId)` -> 404. If any activity is assigned to it (any status) -> 409 `STATE_CONFLICT`; the caller must reassign first (the activity assignee column is NOT NULL).
+- DELETE: access resolved by `(organizationId, projectId, accessId)` -> 404. If it is in any task's team (any status, any task role) -> 409 `STATE_CONFLICT`; the caller must change those teams first.
 - Owners and Administrators have `ORGANIZATION` scope and do not need a `ProjectAccess` themselves; to be assignable to a task they must be given one like anyone else.
 
 ---
@@ -298,29 +301,31 @@ Tenant: goal resolved by `(organizationId, projectId, goalId)`. Errors: 400, 403
 
 ## 7. Activities (tasks)
 
-Task = Activity (ADR 0001). Required assignee: `Activity.assigneeAccess` is NOT NULL, so every task has an assignee at creation (open question Q3 for an unassigned backlog).
+Task = Activity (ADR 0001). Every task has a team of at least one person with exactly one `LEAD` (ADR 0005, `activity_assignee`); there is no unassigned backlog.
 
 `ActivityResponse`:
 ```json
 {
-  "id": "uuid", "goalId": "uuid", "projectId": "uuid", "name": "Pour slab level 1",
+  "id": "uuid", "goalId": "uuid", "goalName": "Structure", "projectId": "uuid", "projectName": "Tower",
+  "name": "Pour slab level 1",
   "startAt": "2026-11-20T08:00:00Z", "dueAt": "2026-12-01T18:00:00Z", "color": "#1e90ff",
   "status": "TODO", "completedAt": null,
-  "assignee": { "accessId": "uuid", "membershipId": "uuid", "fullName": "Ana Perez" }
+  "assignees": [{ "accessId": "uuid", "membershipId": "uuid", "fullName": "Ana Perez", "taskRole": "LEAD" }],
+  "allocatedBudget": null
 }
 ```
 `status`: `TODO | IN_PROGRESS | DONE`.
 
 | Method and path | Permission / scope | Notes |
 |---|---|---|
-| `POST /api/organizations/{orgId}/projects/{projectId}/goals/{goalId}/activities` | `MANAGE_ACTIVITY` on the project (assignee arg `null`) AND `ASSIGN_ACTIVITY` on the project | Body `{name, startAt, dueAt, assigneeAccessId, color?}`; all but `color` required. 201. |
-| `GET /api/organizations/{orgId}/projects/{projectId}/goals/{goalId}/activities` | `VIEW_ACTIVITY`, filtered by scope | Query `status`, `assigneeAccessId` optional. 200 array ordered by `dueAt`. |
+| `POST /api/organizations/{orgId}/projects/{projectId}/goals/{goalId}/activities` | `MANAGE_ACTIVITY` on the project (assignee arg `null`) AND `ASSIGN_ACTIVITY` on the project | Body `{name, startAt, dueAt, assignees: [{accessId, taskRole}], color?}`; all but `color` required; exactly one `LEAD`. 201. |
+| `GET /api/organizations/{orgId}/projects/{projectId}/goals/{goalId}/activities` | `VIEW_ACTIVITY`, filtered by scope | Query `status`, `assigneeAccessId` (any team member) optional. 200 array ordered by `dueAt`. |
 | `GET .../activities/{activityId}` | `VIEW_ACTIVITY` on the project | 200. |
-| `PATCH .../activities/{activityId}` | `MANAGE_ACTIVITY` on the project (assignee arg `null`) | `{name?, startAt?, dueAt?, color?}`. Not for status or assignee. Both dates are checked as a pair. 200. |
-| `PUT .../activities/{activityId}/assignee` | `ASSIGN_ACTIVITY` on the project | Body `{ "assigneeAccessId": "uuid" }`. 200. |
+| `PATCH .../activities/{activityId}` | `MANAGE_ACTIVITY` on the project (assignee arg `null`) | `{name?, startAt?, dueAt?, color?}`. Not for status or team. Both dates are checked as a pair. 200. |
+| `PUT .../activities/{activityId}/assignees` | `ASSIGN_ACTIVITY` on the project | Body `{ "assignees": [{ "accessId": "uuid", "taskRole": "LEAD" }] }` replaces the whole team; exactly one `LEAD`. 200. |
 | `PUT .../activities/{activityId}/budget` | `MANAGE_BUDGET` / `ORGANIZATION` | Body `{allocatedBudget: number\|null}`. Sum of task budgets > phase budget -> 400 `BUDGET_EXCEEDED`; phase without budget -> 400 `BUDGET_PARENT_MISSING`. 200 `ActivityResponse` with `allocatedBudget` (null without `VIEW_BUDGET`). |
-| `POST .../activities/{activityId}/start` | `MANAGE_ACTIVITY` with the current assignee's membership id | TODO -> IN_PROGRESS. 200. |
-| `POST .../activities/{activityId}/complete` | `MANAGE_ACTIVITY` with the current assignee's membership id | TODO or IN_PROGRESS -> DONE, sets `completedAt` to server time. 200. |
+| `POST .../activities/{activityId}/start` | `MANAGE_ACTIVITY` with the caller's membership id when on the team | TODO -> IN_PROGRESS. 200. |
+| `POST .../activities/{activityId}/complete` | `MANAGE_ACTIVITY` with the caller's membership id when on the team | TODO or IN_PROGRESS -> DONE, sets `completedAt` to server time. 200. |
 | `DELETE .../activities/{activityId}` | `MANAGE_ACTIVITY` on the project (assignee arg `null`) | 204. |
 | `GET /api/organizations/{orgId}/activities/mine` | `VIEW_ACTIVITY` or `MANAGE_ACTIVITY`, any scope | Caller's own assigned tasks across all projects of the organization. Query `status` optional. 200 array ordered by `dueAt`. For the Worker home screen. |
 
@@ -367,10 +372,10 @@ Rules:
 
 Tenant and rules:
 - Resolve by `(organizationId, projectId, goalId, activityId)`: wrong parent or other tenant -> 404.
-- `assigneeAccessId` is resolved within `(organizationId, projectId)`: access of another project or tenant -> 404. Assignee must be an ACTIVE member (entity -> 400).
+- Each team `accessId` is resolved within `(organizationId, projectId)`: access of another project or tenant -> 404. Members must be ACTIVE, appear once, and the team must have exactly one `LEAD` (entity -> 400).
 - `startAt <= dueAt`, `startAt` may not be before the goal's `startAt` and `dueAt` may not be after the goal's `dueAt` (entity -> 400 `INVALID_ARGUMENT`). PATCH re-checks both dates together. V9 backfilled existing tasks with `startAt = dueAt`.
 - Transitions: `start` on a non-TODO activity -> 409; `complete` on a DONE activity -> 409. Reopening a DONE task is not in v1 (Q4).
-- A Worker (`MANAGE_ACTIVITY` = `OWN`) passes `start`/`complete` only on tasks assigned to them; on create, patch, reassign and delete the `null` assignee argument makes `OWN` deny -> 403. A Worker's `GET` of the list is filtered to the project's tasks (`VIEW_ACTIVITY` = `PROJECT`); the single-activity GET passes if `PROJECT` access holds.
+- A Worker (`MANAGE_ACTIVITY` = `OWN`) passes `start`/`complete` only on tasks whose team includes them; on create, patch, reassign and delete the `null` assignee argument makes `OWN` deny -> 403. A Worker's `GET` of the list is filtered to the project's tasks (`VIEW_ACTIVITY` = `PROJECT`); the single-activity GET passes if `PROJECT` access holds.
 - Errors: 400, 403, 404, 409 as noted.
 
 ---
@@ -383,7 +388,7 @@ Five system roles are created for every new organization by the `Organization` c
 
 Entity invariant (Backend Dev): today `OrganizationRole.systemRole` means "Owner" (`OrganizationMembership` rejects a `systemRole` for anyone but the creator and blocks suspend/leave). Do NOT mark the other four roles `systemRole`. Add a second flag `seeded` (boolean, default false): seeded roles cannot be renamed, regranted or revoked (same guards as `systemRole` in `rename/grant/revoke`), and codes `ADMINISTRATOR`, `MEMBER`, `WORKER`, `FINANCE` become reserved for custom roles like `OWNER`. Factory: `OrganizationRole.seeded(organization, code, name, grants)` where each grant goes through `Permission.changeScope` validation.
 
-Scopes: `ORG` = `ORGANIZATION`, `PRJ` = `PROJECT` (needs a `ProjectAccess`), `OWN` = assignee is the caller. `-` = not granted. All pairs below pass the `Permission.changeScope` rules (admin actions need `ORG`; project and goal actions cannot be `OWN`; `ASSIGN_ACTIVITY` cannot be `OWN`; price actions need `ORG`).
+Scopes: `ORG` = `ORGANIZATION`, `PRJ` = `PROJECT` (needs a `ProjectAccess`), `OWN` = the caller is in the task's team. `-` = not granted. All pairs below pass the `Permission.changeScope` rules (admin actions need `ORG`; project and goal actions cannot be `OWN`; `ASSIGN_ACTIVITY` cannot be `OWN`; price actions need `ORG`).
 
 | Action | Owner `OWNER` | Administrator `ADMINISTRATOR` | Member `MEMBER` (office) | Worker `WORKER` (field) | Finance `FINANCE` (placeholder) |
 |---|---|---|---|---|---|
@@ -433,7 +438,7 @@ Behavior check per role (acceptance cases for QA):
 
 - Q1 RESOLVED (user): Member manages goals (`MANAGE_GOAL` / `ORG`).
 - Q2 RESOLVED (user): Owner only edits organization details in v1; split `MANAGE_ORGANIZATION` when billing arrives.
-- Q3 (product, user): are unassigned tasks (office backlog) needed? Would require `Activity.assigneeAccess` nullable. Recommendation: no for v1, assignee required.
+- Q3 (resolved, ADR 0005): no unassigned tasks; every task has a team with exactly one Lead.
 - Q4 (product, user): may a DONE task be reopened (worker marked it by mistake)? Needs a `reopen()` entity method and endpoint. Recommendation: add `POST .../reopen` for `MANAGE_ACTIVITY` non-`OWN` in the first fix iteration if users ask.
 - Q5 (Backend Dev + Architect): organizations already in the dev/prod database lack the four seeded roles. Needs a one-off backfill; confirm whether any real data exists before choosing script vs Flyway migration.
 - Q6 (Architect, later): pagination for lists. Unpaginated in v1; add `page`/`size` before activities per organization grow large.
