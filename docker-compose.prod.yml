@@ -1,0 +1,43 @@
+# Production overlay: optimized images, no source mounts, only the web servers are published.
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+# Put a TLS-terminating reverse proxy in front of these ports; auth cookies need HTTPS outside localhost.
+x-hardening: &hardening
+  restart: unless-stopped
+  security_opt:
+    - no-new-privileges:true
+
+services:
+  db:
+    <<: *hardening
+    # No published port: only reachable by the backend on the compose network
+
+  backend:
+    <<: *hardening
+    build:
+      target: runtime
+    image: construx-backend:prod
+    # No published port: the dashboard proxies /api, /oauth2 and /login/oauth2
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+
+  dashboard:
+    <<: *hardening
+    build:
+      target: runtime
+      args:
+        VITE_API_BASE_URL: /api
+        # Build-time value, read from the shell or the root .env when building
+        VITE_OAUTH2_AUTHORIZATION_URL: ${VITE_OAUTH2_AUTHORIZATION_URL:-}
+    image: construx-dashboard:prod
+    ports:
+      - "${DASHBOARD_PORT:-8081}:80"
+
+  landing:
+    <<: *hardening
+    build:
+      target: runtime
+    image: construx-landing:prod
+    ports:
+      - "${LANDING_PORT:-8082}:80"

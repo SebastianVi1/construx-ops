@@ -1,0 +1,3 @@
+# Files parsed by Docker keep LF endings.
+*.yml text eol=lf
+docker.env.example text eol=lf

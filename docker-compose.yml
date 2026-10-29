@@ -1,0 +1,36 @@
+# Base Construx stack shared by both environments. Use it through an overlay:
+#   dev:  docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
+#   prod: docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+# Settings and secrets come from docker.env (copy docker.env.example); it is never baked into images.
+services:
+  db:
+    image: postgres:17-alpine
+    env_file: docker.env
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  backend:
+    build: ./construx
+    env_file: docker.env
+    environment:
+      # Trust X-Forwarded-* from the dashboard proxy so OAuth redirect URLs use the public host
+      SERVER_FORWARD_HEADERS_STRATEGY: framework
+    depends_on:
+      db:
+        condition: service_healthy
+
+  dashboard:
+    build: ./construx-dashboard
+    depends_on:
+      - backend
+
+  landing:
+    build: ./construx-landing-page
+
+volumes:
+  pgdata:

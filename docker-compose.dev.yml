@@ -1,0 +1,44 @@
+# Development overlay: source bind mounts and hot reload.
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
+# Dashboard: http://localhost:5173 · Landing: http://localhost:4321 · API: http://localhost:8080 · DB: localhost:5433
+services:
+  db:
+    ports:
+      - "127.0.0.1:5433:5432"
+
+  backend:
+    build:
+      target: dev
+    image: construx-backend:dev
+    volumes:
+      # Restart the service to pick up Java changes: docker compose ... restart backend
+      - ./construx/src:/app/src
+      - m2:/root/.m2
+    ports:
+      - "${BACKEND_DEV_PORT:-8080}:8080"
+
+  dashboard:
+    build:
+      target: dev
+    image: construx-dashboard:dev
+    environment:
+      # Vite gives process env precedence over the mounted .env file
+      VITE_API_PROXY_TARGET: http://backend:8080
+    volumes:
+      - ./construx-dashboard:/app
+      - /app/node_modules
+    ports:
+      - "${DASHBOARD_DEV_PORT:-5173}:5173"
+
+  landing:
+    build:
+      target: dev
+    image: construx-landing:dev
+    volumes:
+      - ./construx-landing-page:/app
+      - /app/node_modules
+    ports:
+      - "${LANDING_DEV_PORT:-4321}:4321"
+
+volumes:
+  m2:
