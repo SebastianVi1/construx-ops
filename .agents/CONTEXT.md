@@ -152,7 +152,7 @@ Legend: ✅ exists · 🟡 partial (modeled without API, or incomplete) · ❌ m
 | Activities, tasks and progress | 🟡 | `Goal` → `Activity`, no API, no progress calculation |
 | Onboarding flow (invited vs Owner vs Worker) | ❌ | Dashboard asks the role but keeps it in `localStorage` |
 | Worker location on site | ❌ | No check-in, attendance or location |
-| Plans / PDFs, zones, floors | ❌ | No entities and no file storage |
+| Plans / PDFs, zones, floors | 🟡 | Image plans per site in private S3 (presigned upload and view); no PDFs, revisions, zones or floors |
 | Finance (purchases, expenses) | ❌ | |
 | CRM | ❌ | |
 | Overview dashboard with real data | ❌ | UI exists with mock data |
