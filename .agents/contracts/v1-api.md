@@ -382,6 +382,22 @@ Tenant and rules:
 
 `color` (goals and activities, migration V10): the bar color in the schedule as lowercase `#rrggbb`, or `null` for the default. POST and PATCH accept `#rrggbb` in any case; PATCH `""` resets it to `null`; an omitted `color` keeps the stored one; anything else -> 400 `VALIDATION_FAILED`. It needs the same permission as the rest of the PATCH.
 
+## 7c. Site plans
+
+Image files of a site in a private S3 bucket. Module `modules/plan`, schema `V19__project_plans.sql`, detail and upload flow in `construx/docs/plans.md`, bucket setup in `construx/docs/plans-aws-setup.md`. Permissions: reads `VIEW_PLAN`, writes `MANAGE_PLAN` (`ORGANIZATION` or `PROJECT`, never `OWN`). Section 0.1 applies: non-member -> 404, unknown site -> 404, then 403, then a plan outside the site -> 404.
+
+The file never passes through the API: the client asks for a presigned `PUT` URL, sends the bytes to S3 with exactly the returned `headers` (no cookies, no CSRF), then asks the API to complete the plan. A plan is `PENDING` until completed and hidden from reads.
+
+| Method and path | Permission | Notes |
+|---|---|---|
+| `POST /api/organizations/{orgId}/projects/{projectId}/plans/uploads` | `MANAGE_PLAN` | Body `{fileName, contentType, sizeBytes, name?, description?}`. 201 `{planId, uploadUrl, headers, expiresAt}` (URL valid 10 min). Type not `image/jpeg|png|webp` -> 400 `PLAN_FILE_TYPE`; over 20 MB -> 400 `PLAN_FILE_TOO_LARGE`. |
+| `POST .../plans/{planId}/complete` | `MANAGE_PLAN` | 200 `PlanResponse`. No file in S3 -> 400 `PLAN_UPLOAD_MISSING`; other size or type -> 400 `PLAN_UPLOAD_MISMATCH`; already ready -> 409 `STATE_CONFLICT`. |
+| `GET .../plans` | `VIEW_PLAN` | `READY` plans, newest first. 200 array. |
+| `GET .../plans/{planId}` | `VIEW_PLAN` | 200 `PlanResponse`; `PENDING` -> 404. |
+| `DELETE .../plans/{planId}` | `MANAGE_PLAN` | 204. Row first, then the S3 file; an S3 failure keeps the row (500). |
+
+`PlanResponse`: `{ id, projectId, name, description, fileName, contentType, sizeBytes, createdAt, completedAt, viewUrl, viewUrlExpiresAt }`. `viewUrl` is a presigned `GET` valid 10 minutes. `name` defaults to the file name without extension (max 120); `description` max 500.
+
 ## 8. Seeded permission matrix
 
 Five system roles are created for every new organization by the `Organization` constructor. `code` is the stable identifier used by the API; `name` is informational and stored in Spanish like the existing Owner (`Propietario`). The dashboard localizes display by `code`.
@@ -406,6 +422,8 @@ Scopes: `ORG` = `ORGANIZATION`, `PRJ` = `PROJECT` (needs a `ProjectAccess`), `OW
 | `MANAGE_PRICES` | ORG | ORG | - | - | ORG |
 | `VIEW_BUDGET` | ORG | ORG | - | - | ORG |
 | `MANAGE_BUDGET` | ORG | - | - | - | ORG |
+| `VIEW_PLAN` | ORG | ORG | PRJ | PRJ | - |
+| `MANAGE_PLAN` | ORG | ORG | PRJ | - | - |
 
 Notes:
 - Owner is built by the existing `OrganizationRole.owner()` (every action at `ORG`).
@@ -415,6 +433,7 @@ Notes:
 - `VIEW_PRICES` and `MANAGE_PRICES` (material prices, ADR 0004) were added after launch: `V11__price_permissions.sql` backfills them into the Owner and seeded roles of existing organizations; custom roles get nothing.
 - `VIEW_BUDGET` and `MANAGE_BUDGET` (site, phase and task budgets, expenses) are organization-scope only; `V13__project_budget.sql` backfilled them into Owner, Administrator and Finance of existing organizations; custom roles get nothing.
 - Only Owner and Finance change money: `V15__budget_permissions.sql` removes `MANAGE_BUDGET` from seeded Administrator roles (they keep `VIEW_BUDGET`) and gives seeded Finance roles `VIEW_GOAL` and `VIEW_ACTIVITY` so they can assign phase and task budgets. Custom roles are untouched.
+- `VIEW_PLAN` and `MANAGE_PLAN` (site plans) cannot be `OWN`. `V20__plan_permissions.sql` backfilled them into Owner and Administrator (`ORG`), Member (both `PRJ`) and Worker (`VIEW_PLAN` `PRJ`) of existing organizations; Finance and custom roles get nothing.
 - Budgets nest: site -> phases -> tasks. Children cannot hold more than their parent, a child needs a parent budget, and a parent cannot drop below its children (`BUDGET_EXCEEDED` / `BUDGET_PARENT_MISSING`). All amounts are in USD for now.
 - Worker sees every task on their sites (`VIEW_ACTIVITY` = `PRJ`) because site-level awareness is the product pitch; Q7 if this should be `OWN`.
 
