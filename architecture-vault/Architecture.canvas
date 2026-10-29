@@ -1,0 +1,310 @@
+{
+  "nodes": [
+    {
+      "id": "fe",
+      "type": "file",
+      "file": "frontend/Frontend.md",
+      "x": 0,
+      "y": 0,
+      "width": 360,
+      "height": 210,
+      "color": "5"
+    },
+    {
+      "id": "routes",
+      "type": "file",
+      "file": "frontend/Routing and State.md",
+      "x": 0,
+      "y": 300,
+      "width": 360,
+      "height": 210,
+      "color": "5"
+    },
+    {
+      "id": "work",
+      "type": "file",
+      "file": "frontend/Workspace.md",
+      "x": 0,
+      "y": 600,
+      "width": 360,
+      "height": 210,
+      "color": "5"
+    },
+    {
+      "id": "features",
+      "type": "file",
+      "file": "frontend/Project Features.md",
+      "x": 0,
+      "y": 900,
+      "width": 360,
+      "height": 210,
+      "color": "5"
+    },
+    {
+      "id": "api",
+      "type": "file",
+      "file": "frontend/API Boundary.md",
+      "x": 500,
+      "y": 0,
+      "width": 360,
+      "height": 210,
+      "color": "5"
+    },
+    {
+      "id": "auth",
+      "type": "file",
+      "file": "frontend/Authentication.md",
+      "x": 500,
+      "y": 300,
+      "width": 360,
+      "height": 210,
+      "color": "5"
+    },
+    {
+      "id": "ui-money",
+      "type": "file",
+      "file": "frontend/Finance and Materials.md",
+      "x": 500,
+      "y": 600,
+      "width": 360,
+      "height": 210,
+      "color": "5"
+    },
+    {
+      "id": "landing",
+      "type": "file",
+      "file": "frontend/Landing.md",
+      "x": 500,
+      "y": 900,
+      "width": 360,
+      "height": 210,
+      "color": "5"
+    },
+    {
+      "id": "be",
+      "type": "file",
+      "file": "backend/Backend.md",
+      "x": 1000,
+      "y": 0,
+      "width": 360,
+      "height": 210,
+      "color": "4"
+    },
+    {
+      "id": "security",
+      "type": "file",
+      "file": "backend/Security.md",
+      "x": 1000,
+      "y": 300,
+      "width": 360,
+      "height": 210,
+      "color": "4"
+    },
+    {
+      "id": "project",
+      "type": "file",
+      "file": "backend/Projects.md",
+      "x": 1000,
+      "y": 600,
+      "width": 360,
+      "height": 210,
+      "color": "4"
+    },
+    {
+      "id": "pricing",
+      "type": "file",
+      "file": "backend/Pricing.md",
+      "x": 1000,
+      "y": 900,
+      "width": 360,
+      "height": 210,
+      "color": "4"
+    },
+    {
+      "id": "db",
+      "type": "file",
+      "file": "backend/Persistence.md",
+      "x": 1500,
+      "y": 0,
+      "width": 360,
+      "height": 210,
+      "color": "6"
+    },
+    {
+      "id": "identity",
+      "type": "file",
+      "file": "backend/Identity.md",
+      "x": 1500,
+      "y": 300,
+      "width": 360,
+      "height": 210,
+      "color": "4"
+    },
+    {
+      "id": "finance",
+      "type": "file",
+      "file": "backend/Finance.md",
+      "x": 1500,
+      "y": 600,
+      "width": 360,
+      "height": 210,
+      "color": "4"
+    },
+    {
+      "id": "runtime",
+      "type": "file",
+      "file": "Runtime.md",
+      "x": 1500,
+      "y": 900,
+      "width": 360,
+      "height": 210,
+      "color": "3"
+    }
+  ],
+  "edges": [
+    {
+      "id": "e0",
+      "fromNode": "fe",
+      "toNode": "api",
+      "fromSide": "right",
+      "toSide": "left",
+      "toEnd": "arrow",
+      "label": "uses"
+    },
+    {
+      "id": "e1",
+      "fromNode": "fe",
+      "toNode": "routes",
+      "fromSide": "right",
+      "toSide": "left",
+      "toEnd": "arrow",
+      "label": "boots"
+    },
+    {
+      "id": "e2",
+      "fromNode": "routes",
+      "toNode": "work",
+      "fromSide": "right",
+      "toSide": "left",
+      "toEnd": "arrow",
+      "label": "gates"
+    },
+    {
+      "id": "e3",
+      "fromNode": "work",
+      "toNode": "features",
+      "fromSide": "right",
+      "toSide": "left",
+      "toEnd": "arrow",
+      "label": "contains"
+    },
+    {
+      "id": "e4",
+      "fromNode": "features",
+      "toNode": "api",
+      "fromSide": "right",
+      "toSide": "left",
+      "toEnd": "arrow",
+      "label": "calls"
+    },
+    {
+      "id": "e5",
+      "fromNode": "api",
+      "toNode": "be",
+      "fromSide": "right",
+      "toSide": "left",
+      "toEnd": "arrow",
+      "label": "HTTP"
+    },
+    {
+      "id": "e6",
+      "fromNode": "api",
+      "toNode": "auth",
+      "fromSide": "right",
+      "toSide": "left",
+      "toEnd": "arrow",
+      "label": "reuses"
+    },
+    {
+      "id": "e7",
+      "fromNode": "auth",
+      "toNode": "security",
+      "fromSide": "right",
+      "toSide": "left",
+      "toEnd": "arrow",
+      "label": "cookies + CSRF"
+    },
+    {
+      "id": "e8",
+      "fromNode": "security",
+      "toNode": "identity",
+      "fromSide": "right",
+      "toSide": "left",
+      "toEnd": "arrow",
+      "label": "authenticates"
+    },
+    {
+      "id": "e9",
+      "fromNode": "be",
+      "toNode": "db",
+      "fromSide": "right",
+      "toSide": "left",
+      "toEnd": "arrow",
+      "label": "persists"
+    },
+    {
+      "id": "e10",
+      "fromNode": "be",
+      "toNode": "project",
+      "fromSide": "right",
+      "toSide": "left",
+      "toEnd": "arrow",
+      "label": "organizes"
+    },
+    {
+      "id": "e11",
+      "fromNode": "project",
+      "toNode": "finance",
+      "fromSide": "right",
+      "toSide": "left",
+      "toEnd": "arrow",
+      "label": "allocates / spends"
+    },
+    {
+      "id": "e12",
+      "fromNode": "ui-money",
+      "toNode": "pricing",
+      "fromSide": "right",
+      "toSide": "left",
+      "toEnd": "arrow",
+      "label": "queries"
+    },
+    {
+      "id": "e13",
+      "fromNode": "ui-money",
+      "toNode": "finance",
+      "fromSide": "right",
+      "toSide": "left",
+      "toEnd": "arrow",
+      "label": "records costs"
+    },
+    {
+      "id": "e14",
+      "fromNode": "landing",
+      "toNode": "runtime",
+      "fromSide": "right",
+      "toSide": "left",
+      "toEnd": "arrow",
+      "label": "separate app"
+    },
+    {
+      "id": "e15",
+      "fromNode": "db",
+      "toNode": "runtime",
+      "fromSide": "right",
+      "toSide": "left",
+      "toEnd": "arrow",
+      "label": "configuration, not live proof"
+    }
+  ]
+}

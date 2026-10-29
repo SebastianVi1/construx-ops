@@ -1,0 +1,204 @@
+{
+  "nodes": [
+    {
+      "id": "user",
+      "type": "file",
+      "file": "backend/Identity.md",
+      "x": 0,
+      "y": 0,
+      "width": 360,
+      "height": 210,
+      "color": "6"
+    },
+    {
+      "id": "org",
+      "type": "file",
+      "file": "backend/Organizations and Access.md",
+      "x": 500,
+      "y": 0,
+      "width": 360,
+      "height": 210,
+      "color": "4"
+    },
+    {
+      "id": "project",
+      "type": "file",
+      "file": "backend/Projects.md",
+      "x": 1000,
+      "y": 0,
+      "width": 360,
+      "height": 210,
+      "color": "4"
+    },
+    {
+      "id": "goal",
+      "type": "file",
+      "file": "backend/Phases.md",
+      "x": 1500,
+      "y": 0,
+      "width": 360,
+      "height": 210,
+      "color": "4"
+    },
+    {
+      "id": "task",
+      "type": "file",
+      "file": "backend/Tasks and Team.md",
+      "x": 2000,
+      "y": 0,
+      "width": 360,
+      "height": 210,
+      "color": "4"
+    },
+    {
+      "id": "finance",
+      "type": "file",
+      "file": "backend/Finance.md",
+      "x": 1000,
+      "y": 400,
+      "width": 360,
+      "height": 210,
+      "color": "3"
+    },
+    {
+      "id": "pricing",
+      "type": "file",
+      "file": "backend/Pricing.md",
+      "x": 500,
+      "y": 400,
+      "width": 360,
+      "height": 210,
+      "color": "3"
+    },
+    {
+      "id": "ui",
+      "type": "file",
+      "file": "frontend/Project Features.md",
+      "x": 1500,
+      "y": 400,
+      "width": 360,
+      "height": 210,
+      "color": "5"
+    },
+    {
+      "id": "questions",
+      "type": "file",
+      "file": "Questions.md",
+      "x": 0,
+      "y": 400,
+      "width": 360,
+      "height": 210,
+      "color": "2"
+    }
+  ],
+  "edges": [
+    {
+      "id": "e0",
+      "fromNode": "user",
+      "toNode": "org",
+      "fromSide": "right",
+      "toSide": "left",
+      "toEnd": "arrow",
+      "label": "membership links user"
+    },
+    {
+      "id": "e1",
+      "fromNode": "org",
+      "toNode": "project",
+      "fromSide": "right",
+      "toSide": "left",
+      "toEnd": "arrow",
+      "label": "tenant owns project"
+    },
+    {
+      "id": "e2",
+      "fromNode": "project",
+      "toNode": "goal",
+      "fromSide": "right",
+      "toSide": "left",
+      "toEnd": "arrow",
+      "label": "contains phases"
+    },
+    {
+      "id": "e3",
+      "fromNode": "goal",
+      "toNode": "task",
+      "fromSide": "right",
+      "toSide": "left",
+      "toEnd": "arrow",
+      "label": "contains tasks"
+    },
+    {
+      "id": "e4",
+      "fromNode": "org",
+      "toNode": "task",
+      "fromSide": "right",
+      "toSide": "left",
+      "toEnd": "arrow",
+      "label": "ProjectAccess enables assignment"
+    },
+    {
+      "id": "e5",
+      "fromNode": "project",
+      "toNode": "finance",
+      "fromSide": "right",
+      "toSide": "left",
+      "toEnd": "arrow",
+      "label": "allocated budget / expenses"
+    },
+    {
+      "id": "e6",
+      "fromNode": "task",
+      "toNode": "finance",
+      "fromSide": "right",
+      "toSide": "left",
+      "toEnd": "arrow",
+      "label": "task-linked spending"
+    },
+    {
+      "id": "e7",
+      "fromNode": "org",
+      "toNode": "pricing",
+      "fromSide": "right",
+      "toSide": "left",
+      "toEnd": "arrow",
+      "label": "scopes catalogue"
+    },
+    {
+      "id": "e8",
+      "fromNode": "ui",
+      "toNode": "project",
+      "fromSide": "right",
+      "toSide": "left",
+      "toEnd": "arrow",
+      "label": "Site = Project"
+    },
+    {
+      "id": "e9",
+      "fromNode": "ui",
+      "toNode": "goal",
+      "fromSide": "right",
+      "toSide": "left",
+      "toEnd": "arrow",
+      "label": "Phase = Goal"
+    },
+    {
+      "id": "e10",
+      "fromNode": "ui",
+      "toNode": "task",
+      "fromSide": "right",
+      "toSide": "left",
+      "toEnd": "arrow",
+      "label": "Task = Activity"
+    },
+    {
+      "id": "e11",
+      "fromNode": "pricing",
+      "toNode": "questions",
+      "fromSide": "right",
+      "toSide": "left",
+      "toEnd": "arrow",
+      "label": "currency comments disagree"
+    }
+  ]
+}
