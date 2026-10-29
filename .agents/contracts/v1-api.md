@@ -228,7 +228,7 @@ Entity change: `Project` gains `address` (nullable, max 255), `startDate` (nulla
 | `GET /api/organizations/{orgId}/projects` | `VIEW_PROJECT`, filtered by scope (0.1) | Query `status` optional; default excludes `ARCHIVED`. A Worker only gets projects where they have `ProjectAccess`. 200 array. |
 | `GET /api/organizations/{orgId}/projects/{projectId}` | `VIEW_PROJECT` on the project | 200. |
 | `PATCH /api/organizations/{orgId}/projects/{projectId}` | `MANAGE_PROJECT` on the project | Any subset of the create fields. 200. Never changes the budget. |
-| `PUT /api/organizations/{orgId}/projects/{projectId}/budget` | `MANAGE_BUDGET` / `ORGANIZATION` | Body `{allocatedBudget: number\|null}`, field required; null clears, a missing field -> 400 `INVALID_ARGUMENT`. Negative, more than 2 decimals or more than 12 integer digits -> 400. 200 `ProjectResponse`. |
+| `PUT /api/organizations/{orgId}/projects/{projectId}/budget` | `MANAGE_BUDGET` / `ORGANIZATION` | Body `{allocatedBudget: number\|null}`, field required; null clears, a missing field -> 400 `INVALID_ARGUMENT`. Negative, more than 2 decimals or more than 12 integer digits -> 400. Below the sum of its phase budgets (or null while phases hold budget) -> 400 `BUDGET_EXCEEDED`. 200 `ProjectResponse`. |
 
 No hard delete in v1: set `status` to `ARCHIVED`.
 
@@ -236,9 +236,9 @@ Site expenses (`modules/finance`, `V14__site_expenses.sql`), detail in `construx
 
 | Method and path | Permission / scope | Notes |
 |---|---|---|
-| `GET /api/organizations/{orgId}/projects/{projectId}/budget` | `VIEW_BUDGET` | 200 `{allocatedBudget, spent, remaining, byCategory[{category, amount}]}`; remaining = allocatedBudget - spent, negative on overrun, null without a budget. |
+| `GET /api/organizations/{orgId}/projects/{projectId}/budget` | `VIEW_BUDGET` | 200 `{allocatedBudget, spent, remaining, allocatedToPhases, unallocated, byCategory[{category, amount}]}`; remaining = allocatedBudget - spent, negative on overrun, null without a budget; unallocated = allocatedBudget - allocatedToPhases, null without a budget. |
 | `GET /api/organizations/{orgId}/projects/{projectId}/expenses` | `VIEW_BUDGET` | 200 array `{id, projectId, amount, spentOn, description, category}`, newest first. |
-| `POST /api/organizations/{orgId}/projects/{projectId}/expenses` | `MANAGE_BUDGET` | Body `{amount (> 0, 12.2), spentOn, description (1..160), category (MATERIALS\|LABOR\|EQUIPMENT\|OTHER)}`. 201. |
+| `POST /api/organizations/{orgId}/projects/{projectId}/expenses` | `MANAGE_BUDGET` (Owner, Finance; not Administrator since V15) | Body `{amount (> 0, 12.2), spentOn, description (1..160), category (MATERIALS\|LABOR\|EQUIPMENT\|OTHER)}`. 201. |
 | `PATCH /api/organizations/{orgId}/projects/{projectId}/expenses/{expenseId}` | `MANAGE_BUDGET` | Any subset of the create fields. 200. |
 | `DELETE /api/organizations/{orgId}/projects/{projectId}/expenses/{expenseId}` | `MANAGE_BUDGET` | 204. |
 
@@ -290,6 +290,7 @@ Entity change: `Goal` gains `rename`, `changeStartAt`, `changeDueAt`, `changeDat
 | `PATCH /api/organizations/{orgId}/projects/{projectId}/goals/{goalId}` | `MANAGE_GOAL` on the project | `{name?, startAt?, dueAt?, color?}`. 200. |
 | `POST /api/organizations/{orgId}/projects/{projectId}/goals/{goalId}/shift` | `MANAGE_GOAL` on the project | Body `{ "days": int }`, non-zero, -3650..3650. Moves the goal's `startAt`/`dueAt` and every activity's `startAt`/`dueAt` by `days` in one transaction. 200 `GoalResponse`. `days = 0` -> 400 `INVALID_ARGUMENT`; missing or out of range -> 400 `VALIDATION_FAILED`. |
 | `DELETE /api/organizations/{orgId}/projects/{projectId}/goals/{goalId}` | `MANAGE_GOAL` on the project | 204. Goal has activities -> 409 `STATE_CONFLICT`. |
+| `PUT /api/organizations/{orgId}/projects/{projectId}/goals/{goalId}/budget` | `MANAGE_BUDGET` / `ORGANIZATION` | Body `{allocatedBudget: number\|null}` (same rules as the site budget). Sum of phase budgets > site budget -> 400 `BUDGET_EXCEEDED`; site without budget -> 400 `BUDGET_PARENT_MISSING`; below the sum of its task budgets -> 400 `BUDGET_EXCEEDED`. 200 `GoalResponse` with `allocatedBudget`, `allocatedToActivities`, `unallocated` (all null without `VIEW_BUDGET`). |
 
 Tenant: goal resolved by `(organizationId, projectId, goalId)`. Errors: 400, 403, 404, 409 as noted. `activityCount`/`doneCount` are `null` when the caller lacks `VIEW_ACTIVITY` on the project.
 
@@ -317,6 +318,7 @@ Task = Activity (ADR 0001). Required assignee: `Activity.assigneeAccess` is NOT 
 | `GET .../activities/{activityId}` | `VIEW_ACTIVITY` on the project | 200. |
 | `PATCH .../activities/{activityId}` | `MANAGE_ACTIVITY` on the project (assignee arg `null`) | `{name?, startAt?, dueAt?, color?}`. Not for status or assignee. Both dates are checked as a pair. 200. |
 | `PUT .../activities/{activityId}/assignee` | `ASSIGN_ACTIVITY` on the project | Body `{ "assigneeAccessId": "uuid" }`. 200. |
+| `PUT .../activities/{activityId}/budget` | `MANAGE_BUDGET` / `ORGANIZATION` | Body `{allocatedBudget: number\|null}`. Sum of task budgets > phase budget -> 400 `BUDGET_EXCEEDED`; phase without budget -> 400 `BUDGET_PARENT_MISSING`. 200 `ActivityResponse` with `allocatedBudget` (null without `VIEW_BUDGET`). |
 | `POST .../activities/{activityId}/start` | `MANAGE_ACTIVITY` with the current assignee's membership id | TODO -> IN_PROGRESS. 200. |
 | `POST .../activities/{activityId}/complete` | `MANAGE_ACTIVITY` with the current assignee's membership id | TODO or IN_PROGRESS -> DONE, sets `completedAt` to server time. 200. |
 | `DELETE .../activities/{activityId}` | `MANAGE_ACTIVITY` on the project (assignee arg `null`) | 204. |
@@ -390,15 +392,15 @@ Scopes: `ORG` = `ORGANIZATION`, `PRJ` = `PROJECT` (needs a `ProjectAccess`), `OW
 | `MANAGE_MEMBERS` | ORG | ORG | - | - | - |
 | `VIEW_PROJECT` | ORG | ORG | ORG | PRJ | ORG |
 | `MANAGE_PROJECT` | ORG | ORG | - | - | - |
-| `VIEW_GOAL` | ORG | ORG | ORG | PRJ | - |
+| `VIEW_GOAL` | ORG | ORG | ORG | PRJ | ORG |
 | `MANAGE_GOAL` | ORG | ORG | ORG | - | - |
-| `VIEW_ACTIVITY` | ORG | ORG | ORG | PRJ | - |
+| `VIEW_ACTIVITY` | ORG | ORG | ORG | PRJ | ORG |
 | `MANAGE_ACTIVITY` | ORG | ORG | ORG | OWN | - |
 | `ASSIGN_ACTIVITY` | ORG | ORG | ORG | - | - |
 | `VIEW_PRICES` | ORG | ORG | ORG | - | ORG |
 | `MANAGE_PRICES` | ORG | ORG | - | - | ORG |
 | `VIEW_BUDGET` | ORG | ORG | - | - | ORG |
-| `MANAGE_BUDGET` | ORG | ORG | - | - | ORG |
+| `MANAGE_BUDGET` | ORG | - | - | - | ORG |
 
 Notes:
 - Owner is built by the existing `OrganizationRole.owner()` (every action at `ORG`).
@@ -406,7 +408,9 @@ Notes:
 - When role-management endpoints are built later (not in v1), the rule must be "a caller cannot grant an action/scope they do not hold" because Administrator has `MANAGE_ROLES`.
 - Finance holds `VIEW_PROJECT` plus the material price actions; finance actions are added to the enum and to this role with the finance module (needs a data migration for existing organizations).
 - `VIEW_PRICES` and `MANAGE_PRICES` (material prices, ADR 0004) were added after launch: `V11__price_permissions.sql` backfills them into the Owner and seeded roles of existing organizations; custom roles get nothing.
-- `VIEW_BUDGET` and `MANAGE_BUDGET` (site budget) are organization-scope only; `V13__project_budget.sql` backfills them into Owner, Administrator and Finance of existing organizations; custom roles get nothing.
+- `VIEW_BUDGET` and `MANAGE_BUDGET` (site, phase and task budgets, expenses) are organization-scope only; `V13__project_budget.sql` backfilled them into Owner, Administrator and Finance of existing organizations; custom roles get nothing.
+- Only Owner and Finance change money: `V15__budget_permissions.sql` removes `MANAGE_BUDGET` from seeded Administrator roles (they keep `VIEW_BUDGET`) and gives seeded Finance roles `VIEW_GOAL` and `VIEW_ACTIVITY` so they can assign phase and task budgets. Custom roles are untouched.
+- Budgets nest: site -> phases -> tasks. Children cannot hold more than their parent, a child needs a parent budget, and a parent cannot drop below its children (`BUDGET_EXCEEDED` / `BUDGET_PARENT_MISSING`). All amounts are in USD for now.
 - Worker sees every task on their sites (`VIEW_ACTIVITY` = `PRJ`) because site-level awareness is the product pitch; Q7 if this should be `OWN`.
 
 Behavior check per role (acceptance cases for QA):
