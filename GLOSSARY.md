@@ -49,3 +49,7 @@ _Avoid_: Owner, manager, responsible
 **Expense**:
 Money spent on a Site, optionally charged to one Task, which reduces the Site's remaining budget.
 _Avoid_: Cost, purchase, payment
+
+**Site Report**:
+A persistent PDF snapshot of a Site's budget, expenses, phase progress, and team, generated at a point in time by an authorized member and shared across all Site members.
+_Avoid_: Completion report, closing ticket, informe final, project report
