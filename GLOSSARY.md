@@ -50,6 +50,14 @@ _Avoid_: Owner, manager, responsible
 Money spent on a Site, optionally charged to one Task, which reduces the Site's remaining budget.
 _Avoid_: Cost, purchase, payment
 
+**Budget execution**:
+How much of a budget has been spent, as a percentage of it.
+_Avoid_: Consumption, usage
+
+**Budget status**:
+Where a Site stands against its budget: within budget, near the limit (80 % or more spent), over budget, or without a budget.
+_Avoid_: Health, alert level
+
 **Site Report**:
 A persistent PDF snapshot of a Site's budget, expenses, phase progress, and team, generated at a point in time by an authorized member and shared across all Site members.
 _Avoid_: Completion report, closing ticket, informe final, project report
