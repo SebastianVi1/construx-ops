@@ -1,6 +1,8 @@
 # Development overlay: source bind mounts and hot reload.
 #   docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
-# Dashboard: http://localhost:5173 · Landing: http://localhost:4321 · API: http://localhost:8080 · DB: localhost:5433
+# nginx is the only web entry: dashboard + API http://app.localhost · landing http://localhost
+# Backend, dashboard and landing publish no ports. DB stays on 127.0.0.1:5433 for SQL clients.
+# Hosts, upstreams and ports are read from the root .env (see .env.example).
 services:
   db:
     ports:
@@ -10,12 +12,13 @@ services:
     build:
       target: dev
     image: construx-backend:dev
+    environment:
+      # OAuth success redirects and email links point at the nginx host
+      FRONTEND_URL: ${DASHBOARD_PUBLIC_URL:-http://app.localhost}
     volumes:
       # Restart the service to pick up Java changes: docker compose ... restart backend
       - ./construx/src:/app/src
       - m2:/root/.m2
-    ports:
-      - "${BACKEND_DEV_PORT:-8080}:8080"
 
   dashboard:
     build:
@@ -24,11 +27,11 @@ services:
     environment:
       # Vite gives process env precedence over the mounted .env file
       VITE_API_PROXY_TARGET: http://backend:8080
+      # Must be absolute; the browser follows it, so it goes through nginx
+      VITE_OAUTH2_AUTHORIZATION_URL: ${DASHBOARD_PUBLIC_URL:-http://app.localhost}/oauth2/authorization/google
     volumes:
       - ./construx-dashboard:/app
       - /app/node_modules
-    ports:
-      - "${DASHBOARD_DEV_PORT:-5173}:5173"
 
   landing:
     build:
@@ -37,8 +40,27 @@ services:
     volumes:
       - ./construx-landing-page:/app
       - /app/node_modules
+
+  # Dev gateway: routes by Host header, renders nginx/dev/default.conf.template at startup
+  nginx:
+    image: nginx:1.29-alpine
+    environment:
+      NGINX_ENVSUBST_FILTER: ^NGINX_
+      NGINX_LANDING_HOST: ${LANDING_HOST:-localhost}
+      NGINX_DASHBOARD_HOST: ${DASHBOARD_HOST:-app.localhost}
+      NGINX_BACKEND_UPSTREAM: ${BACKEND_UPSTREAM:-backend:8080}
+      NGINX_DASHBOARD_UPSTREAM: ${DASHBOARD_UPSTREAM:-dashboard:5173}
+      NGINX_LANDING_UPSTREAM: ${LANDING_UPSTREAM:-landing:4321}
+    volumes:
+      - ./nginx/dev:/etc/nginx/templates:ro
+    extra_hosts:
+      # Lets an upstream point at a process on the host, e.g. BACKEND_UPSTREAM=host.docker.internal:8080
+      - host.docker.internal:host-gateway
     ports:
-      - "${LANDING_DEV_PORT:-4321}:4321"
+      - "${NGINX_BIND_IP:-127.0.0.1}:${NGINX_HTTP_PORT:-80}:80"
+    depends_on:
+      - dashboard
+      - landing
 
 volumes:
   m2:

@@ -44,10 +44,12 @@ docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
 
 | Service   | URL                          |
 | --------- | ---------------------------- |
-| Dashboard | http://localhost:5173        |
-| Landing   | http://localhost:4321        |
-| API       | http://localhost:8080        |
+| Dashboard | http://app.localhost         |
+| API       | http://app.localhost/api     |
+| Landing   | http://localhost             |
 | DB        | localhost:5433               |
+
+nginx is the only web entry point; hosts, upstreams and its port are set in the root `.env` (see `.env.example`).
 
 Source directories are bind-mounted, so frontend changes hot-reload. After a backend (Java) change, restart just that service:
 

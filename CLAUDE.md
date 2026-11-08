@@ -21,7 +21,8 @@ After cloning: `git submodule update --init --recursive`
 **Dev stack (repo root)**
 ```sh
 docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
-# dashboard :5173  landing :4321  API :8080  DB :5433
+# via nginx: dashboard+API http://app.localhost  landing http://localhost
+# no direct web ports; DB on 127.0.0.1:5433
 docker compose -f docker-compose.yml -f docker-compose.dev.yml restart backend   # after Java changes
 ```
 

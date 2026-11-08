@@ -17,7 +17,7 @@ Construx is a multi-tenant SaaS for construction companies (organizations → si
 ## Commands
 
 **Full stack (repo root, Docker Compose).** `docker-compose.yml` is the base; layer `docker-compose.dev.yml` (bind mounts, hot reload) or `docker-compose.prod.yml` on top. Secrets go in `docker.env` (copy `docker.env.example`); ports and build-time vars in the root `.env`. Both are gitignored.
-- Dev: `docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build` → dashboard :5173, landing :4321, API :8080, Postgres :5433.
+- Dev: `docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build` → nginx gateway routes `app.localhost` (dashboard + `/api`, `/oauth2`) and `localhost` (landing) on :80; nginx is the only web entry (backend, dashboard and landing publish no ports); Postgres stays on 127.0.0.1:5433. Gateway hosts/upstreams/ports come from the root `.env` (`.env.example`); template in `nginx/dev/`.
 - Frontends hot-reload; after a Java change, `... restart backend`. `down -v` also drops the DB volume.
 - Prod overlay publishes only dashboard (:8081) and landing (:8082); the dashboard proxies `/api` and OAuth routes to the unpublished backend, and auth cookies need HTTPS outside localhost.
 
