@@ -38,6 +38,14 @@ _Avoid_: Task role, position
 The people of a Site assigned to one Task; a Task always has at least one person in its Team.
 _Avoid_: Crew (for the whole team), assignee (for the group)
 
+**Crew**:
+A named, reusable group of company members with one leader, kept on the Team page and assigned together to a floor plan zone; unlike a Team it belongs to the company, not to one Task.
+_Avoid_: Team (for this group), squad
+
+**Equipment**:
+A machine or tool of the company (an excavator, a mixer) that can be assigned to a floor plan zone; never people.
+_Avoid_: Team, crew
+
 **Task role**:
 The position a person holds in one Task's Team: Lead, Foreman or Crew, in that order of seniority.
 _Avoid_: Organization role, rank
