@@ -10,5 +10,15 @@
 docker.env
 
 excel/.superpowers/
+# User-uploaded Excel data files; not project source.
+excel/*.xls
+excel/*.xlsx
+excel/*.xlsm
+
+# In-progress planning docs.
+plan_excel.md
+docs/plan/
+docs/superpowers/
 
 .playwright-mcp/
+.claude/worktrees/

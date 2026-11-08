@@ -49,3 +49,13 @@ Subproject commands run from inside each subproject.
 - All UI is bilingual EN/ES in both frontends: add every user-facing string in both languages. Code, identifiers and commit messages are in English.
 - Backend: four-space indent, no formatter, match nearby code; commits are short, imperative, lowercase. Dashboard/landing: Conventional Commits (`feat(scope): ...`). No AI/Co-Authored-By attribution anywhere.
 - Agent tooling is tracked in each subproject: skills (`.agents/skills/`, linked from `.claude/skills/`, pinned in `skills-lock.json`), `AGENTS.md` and `CLAUDE.md`. Plans and specs (`specs/`, `.specify/`, `.agents/specs/`), `.claude/settings.local.json` and the skill registry (`.atl/`) are not committed.
+
+## Agent skills
+
+### Issue tracker
+
+Issues live in GitHub Issues (`SebastianVi1/construx-ops`). See `docs/agents/issue-tracker.md`.
+
+### Domain docs
+
+Single-context layout: `GLOSSARY.md` at root, ADRs in `.agents/adr/`. See `docs/agents/domain.md`.
