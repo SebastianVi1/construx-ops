@@ -19,7 +19,7 @@ Construx is a multi-tenant SaaS for construction companies (organizations → si
 **Full stack (repo root, Docker Compose).** `docker-compose.yml` is the base; layer `docker-compose.dev.yml` (bind mounts, hot reload) or `docker-compose.prod.yml` on top. Secrets go in `docker.env` (copy `docker.env.example`); ports and build-time vars in the root `.env`. Both are gitignored.
 - Dev: `docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build` → nginx gateway routes `app.localhost` (dashboard + `/api`, `/oauth2`) and `localhost` (landing) on :80; nginx is the only web entry (backend, dashboard and landing publish no ports); Postgres stays on 127.0.0.1:5433. Gateway hosts/upstreams/ports come from the root `.env` (`.env.example`); template in `nginx/dev/`.
 - Frontends hot-reload; after a Java change, `... restart backend`. `down -v` also drops the DB volume.
-- Prod overlay publishes only dashboard (:8081) and landing (:8082); the dashboard proxies `/api` and OAuth routes to the unpublished backend, and auth cookies need HTTPS outside localhost.
+- Prod overlay publishes only the `nginx` gateway (:80/:443, `nginx/prod/`): it terminates HTTPS with a Let's Encrypt cert from the `certbot` service and routes `DASHBOARD_HOST` (dashboard + `/api`, `/oauth2`) and `LANDING_HOST` (landing). `LANDING_HOST`, `DASHBOARD_HOST` and `LETSENCRYPT_EMAIL` are required in the root `.env`.
 
 Subproject commands run from inside each subproject.
 

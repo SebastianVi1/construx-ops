@@ -1,6 +1,8 @@
-# Production overlay: optimized images, no source mounts, only the web servers are published.
+# Production overlay: optimized images, no source mounts, only the nginx gateway is published.
 #   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
-# Put a TLS-terminating reverse proxy in front of these ports; auth cookies need HTTPS outside localhost.
+# The gateway terminates HTTPS with a Let's Encrypt certificate (issued and renewed by the certbot
+# service) and routes DASHBOARD_HOST (dashboard + API) and LANDING_HOST (landing). Both hosts need
+# DNS records pointing at this server and ports 80/443 open. Settings are read from the root .env.
 x-hardening: &hardening
   restart: unless-stopped
   security_opt:
@@ -16,7 +18,10 @@ services:
     build:
       target: runtime
     image: construx-backend:prod
-    # No published port: the dashboard proxies /api, /oauth2 and /login/oauth2
+    environment:
+      # OAuth success redirects and email links point at the public dashboard
+      FRONTEND_URL: https://${DASHBOARD_HOST:?set DASHBOARD_HOST in the root .env}
+    # No published port: the gateway proxies /api, /oauth2 and /login/oauth2
     deploy:
       resources:
         limits:
@@ -28,18 +33,62 @@ services:
       target: runtime
       args:
         VITE_API_BASE_URL: /api
-        # Build-time value, read from the shell or the root .env when building
-        VITE_OAUTH2_AUTHORIZATION_URL: ${VITE_OAUTH2_AUTHORIZATION_URL:-}
+        # Build-time value; defaults to the OAuth start route on the public dashboard host
+        VITE_OAUTH2_AUTHORIZATION_URL: ${VITE_OAUTH2_AUTHORIZATION_URL:-https://${DASHBOARD_HOST}/oauth2/authorization/google}
         # Handsontable production license; empty uses the non-commercial evaluation key
         VITE_HANDSONTABLE_LICENSE: ${VITE_HANDSONTABLE_LICENSE:-}
     image: construx-dashboard:prod
-    ports:
-      - "${DASHBOARD_PORT:-8081}:80"
+    # No published port: served through the gateway
 
   landing:
     <<: *hardening
     build:
       target: runtime
     image: construx-landing:prod
+    # No published port: served through the gateway
+
+  # Public entry point: TLS termination and host-based routing (nginx/prod)
+  nginx:
+    <<: *hardening
+    build: ./nginx/prod
+    image: construx-gateway:prod
+    environment:
+      NGINX_ENVSUBST_FILTER: ^NGINX_
+      NGINX_CERT_NAME: construx
+      NGINX_LANDING_HOST: ${LANDING_HOST:?set LANDING_HOST in the root .env}
+      NGINX_DASHBOARD_HOST: ${DASHBOARD_HOST:?set DASHBOARD_HOST in the root .env}
+      NGINX_BACKEND_UPSTREAM: ${BACKEND_UPSTREAM:-backend:8080}
+      NGINX_DASHBOARD_UPSTREAM: ${DASHBOARD_UPSTREAM:-dashboard:80}
+      NGINX_LANDING_UPSTREAM: ${LANDING_UPSTREAM:-landing:80}
+    volumes:
+      - letsencrypt:/etc/letsencrypt:ro
+      - certbot-www:/var/www/certbot:ro
     ports:
-      - "${LANDING_PORT:-8082}:80"
+      # Let's Encrypt validates over port 80, so it must be reachable from the internet
+      - "${NGINX_BIND_IP:-0.0.0.0}:${NGINX_HTTP_PORT:-80}:80"
+      - "${NGINX_BIND_IP:-0.0.0.0}:${NGINX_HTTPS_PORT:-443}:443"
+    depends_on:
+      - dashboard
+      - landing
+
+  # Issues and renews the certificate for both hosts; nginx reloads it on its own
+  certbot:
+    <<: *hardening
+    image: certbot/certbot:v5.9.0
+    entrypoint: ["sh", "/usr/local/bin/certbot-loop.sh"]
+    environment:
+      CERT_NAME: construx
+      LANDING_HOST: ${LANDING_HOST:?set LANDING_HOST in the root .env}
+      DASHBOARD_HOST: ${DASHBOARD_HOST:?set DASHBOARD_HOST in the root .env}
+      LETSENCRYPT_EMAIL: ${LETSENCRYPT_EMAIL:?set LETSENCRYPT_EMAIL in the root .env}
+      LETSENCRYPT_STAGING: ${LETSENCRYPT_STAGING:-0}
+    volumes:
+      - ./nginx/prod/certbot.sh:/usr/local/bin/certbot-loop.sh:ro
+      - letsencrypt:/etc/letsencrypt
+      - certbot-www:/var/www/certbot
+    depends_on:
+      - nginx
+
+volumes:
+  letsencrypt:
+  certbot-www:

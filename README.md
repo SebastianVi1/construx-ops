@@ -63,12 +63,19 @@ docker compose -f docker-compose.yml -f docker-compose.dev.yml restart backend
 docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
 ```
 
-| Service   | URL                          |
-| --------- | ---------------------------- |
-| Dashboard | http://localhost:8081        |
-| Landing   | http://localhost:8082        |
+Before the first start, in the root `.env` (see `.env.example`):
 
-The `db` and `backend` services are not published to the host — the dashboard proxies `/api` and OAuth routes internally. Put a TLS-terminating reverse proxy in front of the published ports (auth cookies require HTTPS outside localhost).
+- `LANDING_HOST` and `DASHBOARD_HOST`: your domains (e.g. `construx.app`, `app.construx.app`), with DNS records pointing at the server.
+- `LETSENCRYPT_EMAIL`: account email for Let's Encrypt. Set `LETSENCRYPT_STAGING=1` for a first test run to avoid rate limits.
+- Ports 80 and 443 open to the internet.
+
+| Service   | URL                           |
+| --------- | ----------------------------- |
+| Dashboard | https://`DASHBOARD_HOST`      |
+| API       | https://`DASHBOARD_HOST`/api  |
+| Landing   | https://`LANDING_HOST`        |
+
+The `nginx` gateway (`nginx/prod/`) is the only published service: it terminates HTTPS, redirects HTTP to HTTPS and routes by host. The `certbot` service issues one certificate for both hosts and renews it; until it is issued the gateway serves a self-signed placeholder, and it switches to the real certificate within five minutes without a restart. Register `https://DASHBOARD_HOST/login/oauth2/code/google` as an authorized redirect URI in the Google OAuth client.
 
 ## Common commands
 
