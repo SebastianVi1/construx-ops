@@ -86,7 +86,7 @@ Modular monolith in `src/main/java/org/andre/construx`:
 - `modules/identity`: users, credentials, sessions, email verification, Google login
 - `modules/organization`: organizations, memberships, roles, permissions, invitations
 - `modules/project`: projects, project access, goals, activities
-- `shared`: config, security, validation, error handling
+- `shared`: audit, storage, validation, error handling, request helpers (no dependency on `modules`; security config is in `modules/identity/config`)
 
 Intended architecture: controllers → services (business logic) → Spring Data repositories. Entity invariants live inside the model classes.
 
@@ -111,7 +111,7 @@ Organization ─< OrganizationInvitation (email, token hash, role, expiry)
 - Vision term → code term: Company = `Organization`, Site = `Project`, staff on a site = `ProjectAccess`, task/activity = `Activity` (grouped under a `Goal`).
 - Permission actions: `MANAGE_ORGANIZATION`, `MANAGE_ROLES`, `MANAGE_MEMBERS`, `VIEW/MANAGE_PROJECT`, `VIEW/MANAGE_GOAL`, `VIEW/MANAGE_ACTIVITY`. Scopes: `OWN`, `PROJECT`, and organization-wide.
 - `Activity` has a name, assignee, due date, status (`TODO`, `IN_PROGRESS`, …) and `completedAt`.
-- `DomainAuthorization` can check membership, role permission, project access and scope. It has tests but **nothing calls it yet**.
+- Authorization: `OrgScope` (`modules/organization/access`) and `SiteScope` (`modules/project/access`) are resolved per request from the path (404 for a non-member or a Site of another organization), and services call `require(action)` (403 unless the role grants the action at ORGANIZATION scope, PROJECT scope with Site access, or OWN scope). `ModuleBoundariesTest` enforces the module seams.
 
 ### Exposed today
 
@@ -183,7 +183,7 @@ Legend: ✅ exists · 🟡 partial (modeled without API, or incomplete) · ❌ m
 ## 9. Suggested roadmap
 
 1. Onboarding and organization API: create an organization (seed default roles), list my organizations, invite by email (to the organization and optionally a site), accept an invitation, save the onboarding role.
-2. Sites, people and activities/tasks API, with `DomainAuthorization` in the service layer and every query filtered by organization. Extend `Project` (address, dates, status). Replace the dashboard's mock data.
+2. Sites, people and activities/tasks API, with `OrgScope`/`SiteScope` checks in the service layer and every query filtered by organization. Extend `Project` (address, dates, status). Replace the dashboard's mock data.
 3. Worker profile: merge `feat/user-profile` without `Startup.java` and add trade and job data.
 4. Housekeeping: Flyway baseline, rename the user table, fix CORS, rate limiting, H2 for the context test, CI running `./mvnw test`.
 5. Plans and zones: upload PDFs, define zones/floors, link activities and workers to zones.
@@ -199,7 +199,7 @@ Legend: ✅ exists · 🟡 partial (modeled without API, or incomplete) · ❌ m
 - **Commits (backend):** short, imperative, lowercase subjects, e.g. `add Activity and Goal models with validation`. The dashboard and landing page use Conventional Commits, e.g. `feat(onboarding): …`.
 - **Dashboard:** feature folders under `src/features/<feature>`, shared UI under `src/components`, tests next to code (`*.test.ts`, run with `bun test`). Follow the tokens in `design.md`.
 - **Landing page:** sections in `src/components/sections`, mockups in `src/components/mockups`, primitives in `src/components/ui`.
-- **Security:** never commit `.env` files or credentials; OAuth client values come from environment variables. Every new business endpoint must enforce tenant scoping and `DomainAuthorization`.
+- **Security:** never commit `.env` files or credentials; OAuth client values come from environment variables. Every new business endpoint must take an `OrgScope`/`SiteScope` and call `require(action)`.
 
 ## 11. Further reading
 

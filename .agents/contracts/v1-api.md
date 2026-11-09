@@ -14,27 +14,20 @@ Decisions behind it: ADR 0001 (Task = Activity), ADR 0002 (registration intent v
 
 ### 0.1 Tenant scoping and authorization algorithm (mandatory for every business endpoint)
 
-Every endpoint under `/api/organizations/{organizationId}/...` carries the tenant in the path. The service layer (never the controller) does, in this order:
+Every endpoint under `/api/organizations/{organizationId}/...` carries the tenant in the path. The controller declares an `OrgScope` (`modules/organization/access`) or, under `.../projects/{projectId}`, a `SiteScope` (`modules/project/access`) parameter; the argument resolver builds it before the service runs. Then, in this order:
 
-1. `requireActiveMember(userId, organizationId)`. Not an active member of that organization: **404 NOT_FOUND** (same as a missing organization, so ids cannot be enumerated). This is the existing pattern in `OrganizationService`.
+1. Scope resolution. Not an active member of that organization, or the Site belongs to another organization: **404 NOT_FOUND** (same as a missing organization, so ids cannot be enumerated).
 2. Load every referenced resource with an organization-filtered query (for example `findByIdAndOrganizationId`, `findByIdAndProjectId...`). A resource that exists in another organization, or is not under the given parent in the path: **404 NOT_FOUND**. Never `findById` alone.
-3. `DomainAuthorization.require(userId, organizationId, projectId, assigneeMembershipId, action)`. Denied (missing permission or scope): **403 FORBIDDEN**.
+3. The service calls `scope.require(action)` (or `siteScope.require(action, ownerMembershipId)`). Denied (missing permission or scope): **403 FORBIDDEN**.
 4. Mutate through entity methods that enforce invariants. Invariant violations surface as 400 (`IllegalArgumentException`) or 409 (`IllegalStateException`).
 
-Rules for the arguments of `require`:
+Rules for `require`:
 
-- `projectId`: pass the project whenever the operation concerns a project, goal or activity. `PROJECT` scope only passes if the caller has a `ProjectAccess` on it. Pass `null` for organization-level operations and for creating a project.
-- `assigneeMembershipId`: pass the caller's membership **only** for `get`, `start` and `complete`, and only when the caller is in the task's team. Pass `null` for every other operation, which makes `OWN` scope deny by construction (a Worker cannot create, edit, reassign or delete tasks).
-- Permission is read from the database on each call, never from the JWT.
+- Use a `SiteScope` whenever the operation concerns a project, goal or activity. `PROJECT` scope only passes if the caller has a `ProjectAccess` on it. `OrgScope.require` (organization-level operations and creating a project) only passes at ORGANIZATION scope.
+- `ownerMembershipId`: pass the caller's membership **only** for `get`, `start` and `complete`, and only when the caller is in the task's team. Pass `null` for every other operation, which makes `OWN` scope deny by construction (a Worker cannot create, edit, reassign or delete tasks).
+- Permission is read from the database when the scope is built for the request, never from the JWT.
 
-**Gap in current code (Backend Dev, `shared/security`)**: `require` is a yes/no gate and cannot filter lists. Add one read method:
-
-```java
-/** Scope the caller holds for an action in an organization, empty if none. Requires active membership. */
-Optional<PermissionScope> scopeOf(UUID userId, UUID organizationId, PermissionAction action)
-```
-
-List endpoints call it: empty -> 403; `ORGANIZATION` -> all rows of the organization; `PROJECT` -> only rows whose project has a `ProjectAccess` for the caller's membership; `OWN` -> only rows assigned to the caller (activities only). List queries filter by organization in the query itself, not in memory.
+`require` is a yes/no gate and cannot filter lists, so list endpoints read `scope.scopeOf(action)` (`Optional<PermissionScope>`): empty -> 403; `ORGANIZATION` -> all rows of the organization; `PROJECT` -> only rows whose project has a `ProjectAccess` for the caller's membership; `OWN` -> only rows assigned to the caller (activities only). List queries filter by organization in the query itself, not in memory.
 
 ### 0.2 Role summary used in the tables
 
@@ -44,7 +37,7 @@ List endpoints call it: empty -> 403; `ORGANIZATION` -> all rows of the organiza
 
 ## 1. Onboarding intent
 
-Self-service, user-scoped (no organization, no `DomainAuthorization`; the row is keyed by the authenticated user id). It is a hint for the dashboard and analytics; it grants nothing (ADR 0002).
+Self-service, user-scoped (no organization, no `OrgScope`; the row is keyed by the authenticated user id). It is a hint for the dashboard and analytics; it grants nothing (ADR 0002).
 
 Storage: new identity-module entity `UserOnboarding` (PK = user account id via `@MapsId`, like `UserProfile`). Not a column on `UserProfile`, because profile columns `fullName` and `phoneNumber` are NOT NULL and a new user has no profile yet.
 
@@ -187,7 +180,7 @@ Not under an organization path: the token identifies the tenant. Tenant safety c
 
 Request: `{ "token": "<raw token from the email link>" }`
 
-- Permission: authenticated user only; no `DomainAuthorization` (the caller has no membership yet). The authenticated account is already active with a verified email.
+- Permission: authenticated user only; no `OrgScope` (the caller has no membership yet). The authenticated account is already active with a verified email.
 - Algorithm (one transaction, row locked with `PESSIMISTIC_WRITE` on the invitation so double-submit cannot create two memberships):
   1. Hash the token, look it up. Unknown -> 404.
   2. Invitation email must equal the caller's email. Mismatch -> 404 (do not reveal that the token is valid).
