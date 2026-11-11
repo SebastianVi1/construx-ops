@@ -69,3 +69,17 @@ _Avoid_: Health, alert level
 **Site Report**:
 A persistent PDF snapshot of a Site's budget, expenses, phase progress, and team, generated at a point in time by an authorized member and shared across all Site members.
 _Avoid_: Completion report, closing ticket, informe final, project report
+
+## Floor plan pins
+
+**Pin**:
+A spot marked on a floor plan with photos attached; it is either an Issue or a Progress photo.
+_Avoid_: Marker, annotation, note
+
+**Issue**:
+A Pin for a defect or pending item on site, assigned to one person and tracked from open, to resolved, to closed.
+_Avoid_: Task (it is not planned work), ticket, snag, incident
+
+**Progress photo**:
+A Pin that only records how the work looked at that spot on a date; it has no status and no assignee.
+_Avoid_: Issue, evidence, attachment
