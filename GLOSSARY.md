@@ -83,3 +83,13 @@ _Avoid_: Task (it is not planned work), ticket, snag, incident
 **Progress photo**:
 A Pin that only records how the work looked at that spot on a date; it has no status and no assignee.
 _Avoid_: Issue, evidence, attachment
+
+## Attendance
+
+**Check-in**:
+One person recorded as present on a Site at a moment, optionally in a floor plan zone, made by that person or by someone answering for them.
+_Avoid_: Clock-in, presence, roll call (for the record)
+
+**Attendance**:
+Who is on a Site on one day, built from that day's Check-ins; a person expected in a zone with no Check-in counts as absent.
+_Avoid_: Timesheet, payroll, headcount
