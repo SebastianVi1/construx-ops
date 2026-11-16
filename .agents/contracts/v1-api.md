@@ -2,7 +2,7 @@
 
 Status: proposed, 2026-10-26. Author: Lead Architect. Scope: onboarding intent, organizations, roles seeding, invitations, projects, goals, activities (tasks), project access. Backend Dev and Frontend Dev build against this document; contract changes go through the Architect.
 
-Decisions behind it: ADR 0001 (Task = Activity), ADR 0002 (registration intent vs role), ADR 0003 (internal assignment only). Terms: Company = `Organization`, Site = `Project`, Phase = `Goal`, Task = `Activity`, site staff = `ProjectAccess`.
+Decisions behind it: ADR 0001 (Task = Activity), ADR 0002 (registration intent vs role), ADR 0003 (internal assignment only), ADR 0008 (the cost catalog is the licensee's own import), ADR 0009 (labor cost accrues per Check-in day). Terms: Company = `Organization`, Site = `Project`, Phase = `Goal`, Task = `Activity`, site staff = `ProjectAccess`; catalog terms in `GLOSSARY.md` "Prices".
 
 ## 0. Conventions
 
@@ -229,10 +229,12 @@ Site expenses (`modules/finance`, `V14__site_expenses.sql`), detail in `construx
 
 | Method and path | Permission / scope | Notes |
 |---|---|---|
-| `GET /api/organizations/{orgId}/projects/{projectId}/budget` | `VIEW_BUDGET` | 200 `{allocatedBudget, spent, remaining, allocatedToPhases, unallocated, byCategory[{category, amount}]}`; remaining = allocatedBudget - spent, negative on overrun, null without a budget; unallocated = allocatedBudget - allocatedToPhases, null without a budget. |
-| `GET /api/organizations/{orgId}/projects/{projectId}/expenses` | `VIEW_BUDGET` | 200 array `{id, projectId, activityId, createdByMembershipId, amount, spentOn, description, category}`, newest first; `activityId`/`createdByMembershipId` null when unset. |
-| `POST /api/organizations/{orgId}/projects/{projectId}/expenses` | `MANAGE_BUDGET` (Owner, Finance; not Administrator since V15) | Body `{amount (> 0, 12.2), spentOn, description (1..160), category (MATERIALS\|LABOR\|EQUIPMENT\|OTHER)}`. 201. |
-| `PATCH /api/organizations/{orgId}/projects/{projectId}/expenses/{expenseId}` | `MANAGE_BUDGET`, or the current Lead of the expense's task when they recorded it | Any subset of the create fields. 200. |
+| `GET /api/organizations/{orgId}/projects/{projectId}/budget` | `VIEW_BUDGET` | 200 `{allocatedBudget, spent, recordedExpenses, laborAccrued, remaining, allocatedToPhases, unallocated, byCategory[{category, amount}]}`; `spent = recordedExpenses + laborAccrued` (ADR 0009, pricing.md §6.4); `byCategory.LABOR` includes the accrual so the categories add up to `spent`; remaining = allocatedBudget - spent, negative on overrun, null without a budget; unallocated = allocatedBudget - allocatedToPhases, null without a budget. |
+| `GET /api/organizations/{orgId}/projects/{projectId}/expenses` | `VIEW_BUDGET` | 200 array `{id, projectId, activityId, createdByMembershipId, amount, spentOn, description, category, resource, quantity, unitCost}`, newest first; `activityId`/`createdByMembershipId` null when unset; `resource {id, code, name, type, unitCode}`, `quantity`, `unitCost` null unless recorded from the catalog. |
+| `POST /api/organizations/{orgId}/projects/{projectId}/expenses` | `MANAGE_BUDGET` (Owner, Finance; not Administrator since V15) | Body `{amount (> 0, 12.2), spentOn, description (1..160), category (MATERIALS\|LABOR\|EQUIPMENT\|OTHER)}`, or from the catalog `{resourceId, quantity (> 0, 6 decimals), spentOn, description?}` where `amount = quantity x current cost` and `category` follows the Resource type (pricing.md §6.5; `400 CATALOG_EXPENSE_FIELDS`, `RESOURCE_NOT_EXPENSABLE`, `RESOURCE_WITHOUT_COST`, `409 ARCHIVED_RESOURCE`). 201. |
+| `PATCH /api/organizations/{orgId}/projects/{projectId}/expenses/{expenseId}` | `MANAGE_BUDGET`, or the current Lead of the expense's task when they recorded it | Any subset of the create fields; on a catalog expense only `spentOn` and `description` (`400 CATALOG_EXPENSE_LOCKED`). 200. |
+| `GET /api/organizations/{orgId}/projects/{projectId}/labor-cost?from=&to=` | `VIEW_BUDGET` | Accrued labor cost: one Labor rate per person per non-removed Check-in day, at the rate effective that day (ADR 0009). 200 `{from, to, total, personDays, unratedPersonDays, people[{membershipId, fullName, days, amount, unratedDays, currentRate}]}`. Range over 366 days or `from > to` -> 400. |
+| `GET /api/organizations/{orgId}/projects/{projectId}/labor-cost/days?membershipId=&from=&to=` | `VIEW_BUDGET` | Paged drill-down per person per day `{day, membershipId, fullName, rate, amount, unrated, unratedReason}`. |
 | `DELETE /api/organizations/{orgId}/projects/{projectId}/expenses/{expenseId}` | `MANAGE_BUDGET`, or the current Lead of the expense's task when they recorded it | 204. |
 | `GET .../projects/{projectId}/goals/{goalId}/activities/{activityId}/expenses` | `VIEW_BUDGET` or the task's current Lead | 200 array, same shape, newest first. |
 | `POST .../projects/{projectId}/goals/{goalId}/activities/{activityId}/expenses` | `MANAGE_BUDGET` or the task's current Lead | Same body as the site POST; charged to the task and to the site. 201. |
@@ -255,13 +257,16 @@ Assignees must have an account (no account-less workers in v1, ADR 0003). People
 
 | Method and path | Permission / scope | Notes |
 |---|---|---|
-| `GET /api/organizations/{orgId}/projects/{projectId}/access` | `VIEW_PROJECT` on the project | 200 array of ACTIVE members only. |
+| `GET /api/organizations/{orgId}/projects/{projectId}/access` | `VIEW_PROJECT` on the project | 200 array of ACTIVE members only. Each row gains `laborRate` (pricing.md §6.1), non-null only for callers holding `VIEW_BUDGET` or `MANAGE_PROJECT` on the Site. |
 | `POST /api/organizations/{orgId}/projects/{projectId}/access` | `MANAGE_PROJECT` on the project | Body `{ "membershipId": "uuid" }`. 201 `AccessResponse`. |
-| `DELETE /api/organizations/{orgId}/projects/{projectId}/access/{accessId}` | `MANAGE_PROJECT` on the project | 204. |
+| `DELETE /api/organizations/{orgId}/projects/{projectId}/access/{accessId}` | `MANAGE_PROJECT` on the project | 204. Labor rate and accrual history of that person on the Site are kept (keyed by membership, not by access). |
+| `GET /api/organizations/{orgId}/projects/{projectId}/access/{accessId}/labor-rate` | `MANAGE_PROJECT` on the project, or `VIEW_BUDGET` | 200 `{current, suggested (the member's latest rate on another Site, for pre-filling), history}`. |
+| `PUT /api/organizations/{orgId}/projects/{projectId}/access/{accessId}/labor-rate` | `MANAGE_PROJECT` on the project | Body `{kind: CATALOG, laborCategoryId}` \| `{kind: FIXED, dailyAmount}` \| `{kind: NONE}`. Writes an immutable rate row effective now (ADR 0009: never retroactive). `laborCategoryId` must be a simple `LABOR` Resource of the organization (404 other tenant, 400 otherwise). 200 `AccessResponse`. |
 
 Rules and errors:
 - POST: membership resolved by `(organizationId, membershipId)` -> 404 if absent. Membership must be ACTIVE (entity -> 400). Already has access -> 409 `DATA_CONFLICT`.
 - DELETE: access resolved by `(organizationId, projectId, accessId)` -> 404. If it is in any task's team (any status, any task role) -> 409 `STATE_CONFLICT`; the caller must change those teams first.
+- Labor rate: table `labor_rate_assignment` (migration of its slice, after `V38`), contract in `construx/docs/pricing.md` §6. A `CATALOG` rate follows the Labor category's real wage day by day; a `FIXED` rate does not follow the catalog.
 - Owners and Administrators have `ORGANIZATION` scope and do not need a `ProjectAccess` themselves; to be assignable to a task they must be given one like anyone else.
 
 ---
@@ -324,44 +329,39 @@ Task = Activity (ADR 0001). Every task has a team of at least one person with ex
 
 (`...` = `/api/organizations/{orgId}/projects/{projectId}/goals/{goalId}`.)
 
-## 7b. Material prices (ADR 0004)
+## 7b. Prices: the cost catalog (ADR 0008, ADR 0009)
 
-The organization's own catalog: Material, Supplier, PriceObservation (see `GLOSSARY.md`). Module `modules/pricing`, schema `V12__material_prices.sql`, detail in `construx/docs/pricing.md`. Permissions: reads `VIEW_PRICES`, writes `MANAGE_PRICES`, both `ORGANIZATION` scope only. Section 0.1 applies: non-member -> 404, then the resource is resolved inside the tenant (another tenant's id -> 404), then 403.
+Each organization has exactly one Catalog of Resources (Material, Labor category, Gang, Equipment rate, Work item) with per-organization Units and Families, Suppliers, a non-retroactive Cost history per Resource, FASAR parameters and Catalog imports from the PU Win+ Excel export. It replaces the former Material prices module (ADR 0004, superseded in part): `material` and `price_observation` are converted into `resource` and `resource_cost_history` by `V38`, the closed unit/category enums become `unit`/`family` tables, and the `/materials` and `/price-observations` routes are removed. Module `modules/pricing`, schema `V38` onward. Full contract, data model, import state machine, derived-cost and FASAR algorithms: `construx/docs/pricing.md`.
 
-Money is a JSON string with two decimals, in MXN including IVA. Dates are ISO `yyyy-mm-dd`.
+Permissions (no new `PermissionAction`): reads `VIEW_PRICES`; writes, costs, FASAR and imports `MANAGE_PRICES`; both `ORGANIZATION` scope only. Section 0.1 applies: non-member -> 404, then every row resolved inside the tenant (another tenant's id -> 404), then 403. Money is a JSON string with two decimals (MXN); quantities up to six decimals; factors up to eight. Paged lists use `?page=&size=&sort=` and `{ content, page, size, totalElements, totalPages }` (pricing.md §0), the first paged lists of the API (answers Q6 for this feature).
 
-`MaterialResponse`:
-```json
-{ "id": "uuid", "name": "Cemento gris", "unit": "BAG", "category": "CEMENT_AGGREGATES", "brand": "Cemex",
-  "archivedAt": null, "cheapestSupplierId": "uuid",
-  "latestPrices": [ { "id": "uuid", "materialId": "uuid", "supplierId": "uuid", "supplierName": "Home Depot",
-    "supplierBranch": "Periférico Sur", "price": "245.50", "observedOn": "2026-10-01", "sku": null,
-    "source": "MANUAL", "createdAt": "2026-10-01T18:00:00Z", "cheapest": true } ] }
-```
-`unit`: `PIECE | BAG | SQUARE_METER | CUBIC_METER | KILOGRAM | LITER | METER`. `category`: `CEMENT_AGGREGATES | STEEL | WOOD | ELECTRICAL | PLUMBING | FINISHES`. `latestPrices` holds one entry per non-archived supplier: its newest observation (`observedOn` desc, then the latest recorded). Entries are ordered by price ascending; every entry at the lowest price has `cheapest: true`. `MaterialDetailResponse` = `MaterialResponse` + `history`: every observation, newest first, without `cheapest`. `SupplierResponse`: `{ id, name, branch, website, archivedAt }`.
-
-| Method and path | Permission | Notes |
+| Method and path (under `/api/organizations/{orgId}`) | Permission | Notes |
 |---|---|---|
-| `GET /api/organizations/{orgId}/materials` | `VIEW_PRICES` | Query `query` (contains over name and brand, case-insensitive), `category`, `includeArchived` (default false). Ordered by name. 200 array. |
-| `GET /api/organizations/{orgId}/materials/{materialId}` | `VIEW_PRICES` | Also for archived materials. 200 `MaterialDetailResponse`. |
-| `POST /api/organizations/{orgId}/materials` | `MANAGE_PRICES` | Body `{name, unit, category, brand?}`. 201. Duplicate -> 409 `DUPLICATE_MATERIAL`. |
-| `PATCH /api/organizations/{orgId}/materials/{materialId}` | `MANAGE_PRICES` | `{name?, unit?, category?, brand?}`; `brand: ""` clears it. 200. Duplicate -> 409 `DUPLICATE_MATERIAL`. |
-| `POST /api/organizations/{orgId}/materials/{materialId}/archive` | `MANAGE_PRICES` | Idempotent. 200. |
-| `GET /api/organizations/{orgId}/suppliers` | `VIEW_PRICES` | Query `includeArchived` (default false). Ordered by name. 200 array. |
-| `POST /api/organizations/{orgId}/suppliers` | `MANAGE_PRICES` | Body `{name, branch?, website?}`. 201. Duplicate -> 409 `DUPLICATE_SUPPLIER`. |
-| `PATCH /api/organizations/{orgId}/suppliers/{supplierId}` | `MANAGE_PRICES` | `{name?, branch?, website?}`; `""` clears an optional field. 200. |
-| `POST /api/organizations/{orgId}/suppliers/{supplierId}/archive` | `MANAGE_PRICES` | Idempotent. 200. |
-| `POST /api/organizations/{orgId}/price-observations` | `MANAGE_PRICES` | Body `{materialId, supplierId, price, observedOn, sku?}`. 201, `source` = `MANUAL`. Archived material -> 409 `ARCHIVED_MATERIAL`; archived supplier -> 409 `ARCHIVED_SUPPLIER`. |
-| `DELETE /api/organizations/{orgId}/price-observations/{observationId}` | `MANAGE_PRICES` | 204. No PUT or PATCH (405): observations are immutable. |
-| `POST /api/organizations/{orgId}/price-observations/import?dryRun=true\|false` | `MANAGE_PRICES` | Multipart part `file` (UTF-8 CSV, max 1 MB, 2000 rows; header `material,unit,category,brand,supplier,branch,price,observed_on,sku`). 200 `ImportReport` (dry run, or import when every row is valid, `imported: true`, `source` = `CSV`). Any invalid row with `dryRun=false` -> 422 with the same report, nothing written. Bad header, size, rows or encoding -> 400 `VALIDATION_FAILED`. Detail in `construx/docs/pricing.md`. |
+| `GET /catalog` | `VIEW_PRICES` | Summary: counts per type, last import, FASAR status, active import. |
+| `GET /units`, `POST /units`, `PATCH /units/{id}`, `POST /units/{id}/archive` | `VIEW_PRICES` / `MANAGE_PRICES` | Per-organization units (`M2`, `JOR`, ...). `409 DUPLICATE_UNIT`, `ARCHIVED_UNIT`. |
+| `GET /families`, `POST /families`, `PATCH /families/{id}`, `POST /families/{id}/archive` | `VIEW_PRICES` / `MANAGE_PRICES` | `409 DUPLICATE_FAMILY`, `ARCHIVED_FAMILY`. |
+| `GET /suppliers`, `POST`, `PATCH /suppliers/{id}`, `POST /suppliers/{id}/archive` | `VIEW_PRICES` / `MANAGE_PRICES` | Kept; body gains the Neodata fields (`code`, `rfc`, address, contact, `isDefault`, ...). |
+| `GET /resources` (paged) | `VIEW_PRICES` | Filters `type`, `query`, `familyId`, `unitId`, `supplierId`, `composite`, `includeArchived`, `missingFromImport`, `discontinued`; sort `code`, `name`, `currentCost`, `costUpdatedAt`. |
+| `GET /resources/{id}` | `VIEW_PRICES` | Detail with `laborDetail`, `equipmentDetail`, `analysis` (unit price analysis lines with derived amounts) or `history`, and `usedIn`. |
+| `POST /resources` | `MANAGE_PRICES` | Hand-made simple `MATERIAL`, `LABOR` or `EQUIPMENT` only; `409 DUPLICATE_CODE`. Work items and analyses are import-only in v1. |
+| `PATCH /resources/{id}` | `MANAGE_PRICES` | Descriptive fields and, for Labor categories, the wage detail. |
+| `POST /resources/{id}/archive` | `MANAGE_PRICES` | Idempotent. |
+| `POST /resources/{id}/costs`, `GET /resources/{id}/costs` (paged) | `MANAGE_PRICES` / `VIEW_PRICES` | New cost effective now (`source MANUAL`); immutable history, no PUT/PATCH/DELETE (405). `409 DERIVED_COST` on composites, `LABOR_COST_FROM_WAGE` on Labor categories. |
+| `GET /fasar`, `PUT /fasar` | `VIEW_PRICES` / `MANAGE_PRICES` | FASAR parameter set; `PUT` recomputes every Labor category's real wage and writes `FASAR` history rows. |
+| `GET /equipment-standby-percentages` | `VIEW_PRICES` | Read-only. |
+| `POST /catalog-imports/uploads` | `MANAGE_PRICES` | Presigned S3 `PUT` (same pattern as plans), 50 MB, `.xlsx` Presupuesto or `.xls`/`.xlsx` FASAR. |
+| `POST /catalog-imports` | `MANAGE_PRICES` | Creates the job (`PENDING`), 202; `409 IMPORT_IN_PROGRESS`. |
+| `GET /catalog-imports/{id}`, `GET /catalog-imports` (paged) | `MANAGE_PRICES` | Status `PENDING -> VALIDATING -> VALIDATED -> IMPORTING -> DONE \| FAILED`, plus `CANCELLED`; dry-run `summary`; `failure {code, message, sheet, row, column}`. |
+| `POST /catalog-imports/{id}/confirm` | `MANAGE_PRICES` | Body `{ licenceAccepted: true, statement: "LICENCE_V1" }`; `400 LICENCE_NOT_ACCEPTED`; `409 STATE_CONFLICT` unless `VALIDATED`. 202. |
+| `POST /catalog-imports/{id}/cancel` | `MANAGE_PRICES` | `PENDING`/`VALIDATED` -> `CANCELLED`. |
 
-Rules:
-- Uniqueness per organization, ignoring case and repeated, leading or trailing whitespace: Material on name + unit + brand, Supplier on name + branch. It is stored as `normalized_key` with a unique `(organization_id, normalized_key)` constraint, and archived rows keep their key.
-- `price`: number or decimal string, > 0, at most 2 decimals, below 10^10 (`numeric(12,2)`), else 400 `INVALID_ARGUMENT`. `observedOn` cannot be after today in UTC (400).
-- `website`: `http` or `https` URL with a host (400).
-- Materials and suppliers are never deleted, only archived. Archived rows are hidden from lists by default and cannot receive new observations.
-- CSV import: `ImportReport` = `{ valid, imported, summary: { rows, newMaterials, newSuppliers, observations }, rows: [ { line, material, supplier, branch, price, observedOn, newMaterial, newSupplier, errors: [ { field, code } ] } ] }`. `unit` and `category` accept the enum codes or the Spanish labels (case and accent insensitive). Matching uses the same normalized keys as manual creation; missing materials and suppliers are created, archived matches are row errors (`ARCHIVED_MATERIAL`, `ARCHIVED_SUPPLIER`). Row codes: `REQUIRED`, `INVALID`, `FUTURE_DATE`, `TOO_MANY_DECIMALS`, `ARCHIVED_MATERIAL`, `ARCHIVED_SUPPLIER`, `COLUMNS`. One transaction, all or nothing.
-- Errors: 400, 403, 404, 405, 409, 422 as noted. A pricing 409 body has the usual problem shape with a readable `detail` and the codes above.
+Rules in brief (details in pricing.md):
+- A Resource's identity is its code, unique per organization; names may repeat. Imports merge by code: new / cost changed / unchanged / missing-from-file (flagged, never deleted). Every imported row has `source = NEODATA_CONSTRUBASE`; the job stores file key, SHA-256, uploader, time and the licence acceptance. No seed data, no sharing across organizations.
+- Costs: simple Resources have a current cost and an immutable history with `effectiveFrom` = write time. Work items, Gangs and other composites have a derived cost from their analysis (`*` qty × cost, `/` cost ÷ qty, `%` fraction × labor subtotal, half-up to 2 decimals per line), recomputed for the organization after every cost write.
+- Labor categories hold nominal wage Sn and the FSR in use; with a complete FASAR set the FSR and real wage are computed (art. 191, 8 h) and compared to the imported values (warnings beyond 0.0005 / 0.05). Without it, the imported FSR stands and is "not recomputable".
+- Equipment hourly cost is the imported `Costo0`, editable; the `DetalleMaquinaria` data is stored, not recomputed (phase 2).
+
+Site-side additions (also in sections 4 and 5 below): `PUT .../access/{accessId}/labor-rate` (`MANAGE_PROJECT`), `GET .../labor-cost` and `.../labor-cost/days` (`VIEW_BUDGET`), expenses "from catalog" (`resourceId` + `quantity`, snapshot `unitCost`), equipment linked to an Equipment rate.
 
 Tenant and rules:
 - Resolve by `(organizationId, projectId, goalId, activityId)`: wrong parent or other tenant -> 404.
@@ -422,8 +422,8 @@ Notes:
 - Owner is built by the existing `OrganizationRole.owner()` (every action at `ORG`).
 - Administrator "all except billing, organization deletion and Owner transfer": the enum has no billing or deletion action, so those currently live under `MANAGE_ORGANIZATION`. Until the enum is split, Administrator does not get `MANAGE_ORGANIZATION`, which also means it cannot rename the organization (Q2). Owner transfer does not exist in v1; the Owner role can never be assigned by invitation or `changeRole`.
 - When role-management endpoints are built later (not in v1), the rule must be "a caller cannot grant an action/scope they do not hold" because Administrator has `MANAGE_ROLES`.
-- Finance holds `VIEW_PROJECT` plus the material price actions; finance actions are added to the enum and to this role with the finance module (needs a data migration for existing organizations).
-- `VIEW_PRICES` and `MANAGE_PRICES` (material prices, ADR 0004) were added after launch: `V11__price_permissions.sql` backfills them into the Owner and seeded roles of existing organizations; custom roles get nothing.
+- Finance holds `VIEW_PROJECT` plus the price actions (`VIEW_PRICES`, `MANAGE_PRICES`, now the whole cost catalog); finance actions are added to the enum and to this role with the finance module (needs a data migration for existing organizations).
+- `VIEW_PRICES` and `MANAGE_PRICES` (added for material prices by `V11__price_permissions.sql`, backfilled into the Owner and seeded roles of existing organizations; custom roles got nothing) now cover the whole cost catalog (ADR 0008): reads, writes, costs, FASAR parameters and imports. No new action was added for the catalog; per-person costs and the accrued labor cost use `VIEW_BUDGET`, assigning a Labor rate uses `MANAGE_PROJECT`.
 - `VIEW_BUDGET` and `MANAGE_BUDGET` (site, phase and task budgets, expenses) are organization-scope only; `V13__project_budget.sql` backfilled them into Owner, Administrator and Finance of existing organizations; custom roles get nothing.
 - Only Owner and Finance change money: `V15__budget_permissions.sql` removes `MANAGE_BUDGET` from seeded Administrator roles (they keep `VIEW_BUDGET`) and gives seeded Finance roles `VIEW_GOAL` and `VIEW_ACTIVITY` so they can assign phase and task budgets. Custom roles are untouched.
 - `VIEW_PLAN` and `MANAGE_PLAN` (site plans) cannot be `OWN`. `V20__plan_permissions.sql` backfilled them into Owner and Administrator (`ORG`), Member (both `PRJ`) and Worker (`VIEW_PLAN` `PRJ`) of existing organizations; Finance and custom roles get nothing.
@@ -453,6 +453,6 @@ Behavior check per role (acceptance cases for QA):
 - Q3 (resolved, ADR 0005): no unassigned tasks; every task has a team with exactly one Lead.
 - Q4 (product, user): may a DONE task be reopened (worker marked it by mistake)? Needs a `reopen()` entity method and endpoint. Recommendation: add `POST .../reopen` for `MANAGE_ACTIVITY` non-`OWN` in the first fix iteration if users ask.
 - Q5 (Backend Dev + Architect): organizations already in the dev/prod database lack the four seeded roles. Needs a one-off backfill; confirm whether any real data exists before choosing script vs Flyway migration.
-- Q6 (Architect, later): pagination for lists. Unpaginated in v1; add `page`/`size` before activities per organization grow large.
+- Q6 (Architect, later): pagination for lists. Unpaginated in v1; add `page`/`size` before activities per organization grow large. The cost catalog (7b) introduces the shape to reuse: `?page=&size=&sort=` and `{ content, page, size, totalElements, totalPages }`.
 - Q7 RESOLVED (user): Worker `VIEW_ACTIVITY` stays `PRJ` (all tasks on assigned sites).
 - Q8 (product, user): cap on organizations a user can create and on pending invitations per organization (abuse). Not enforced in v1 beyond the auth rate limiter.

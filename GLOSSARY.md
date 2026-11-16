@@ -2,19 +2,87 @@
 
 Construx digitizes the operations of construction companies: their sites, people, tasks and the costs of building.
 
-## Material prices
+## Prices
+
+**Catalog**:
+A company's own list of everything building costs it, imported from the cost database it holds a licence for or typed by hand; a company has exactly one Catalog and never sees another company's.
+_Avoid_: Price list, database, ConstruBASE (the licensed source, not the Catalog itself)
+
+**Resource**:
+One entry of the Catalog with a code, a Unit and a Cost: a Material, a Labor category, a Gang, an Equipment rate or a Work item.
+_Avoid_: Item, insumo (for Work items), product, article
 
 **Material**:
-A product a company buys to build, identified by its name, unit of measure and brand (for example "Cemento gris 50 kg, saco, Cemex").
-_Avoid_: Product, item, article
+A Resource the company buys to build, such as a bag of cement or a steel bar; its Cost is what one Unit of it costs.
+_Avoid_: Product, item, article, supply
 
 **Supplier**:
-One store or branch where Materials are sold; two branches of the same chain are two Suppliers, because their prices differ.
+A business the company buys Materials from, as named in the Catalog; two branches with different prices are two Suppliers.
 _Avoid_: Vendor, store, provider
 
-**Price observation**:
-The price of one Material at one Supplier on one date, as the company saw it on a shelf, ticket or quote.
-_Avoid_: Quote, listing, offer
+**Cost**:
+What one Unit of a Resource costs the company today, in Mexican pesos; for a Work item it is worked out from its Unit price analysis, for any other Resource it is the latest Cost history entry.
+_Avoid_: Price (that is what the company sells at), rate, tariff
+
+**Cost history entry**:
+One Cost of a Resource from the moment it was recorded until the next entry, with where it came from (an import, a hand edit or a wage recalculation) and who recorded it; entries are never changed or backdated.
+_Avoid_: Price observation, quote, revision
+
+**Work item**:
+A Resource that is a unit of finished work, such as one square meter of block wall, whose Cost is the sum of its Unit price analysis.
+_Avoid_: Concept (in English UI), task, activity, precio unitario (that is the selling price)
+
+**Unit price analysis**:
+The recipe of a Work item, Gang or other composite Resource: which Resources it uses, in what quantity or at what output per day, and therefore what it costs.
+_Avoid_: Matrix (in English UI), bill of materials, breakdown
+
+**Labor category**:
+A Resource for one trade or position, such as peón or oficial albañil, with the daily wage agreed with the worker and the Real wage it costs the company.
+_Avoid_: Role, position, worker, Crew
+
+**Gang**:
+A Resource that is a standard combination of Labor categories priced together for Unit price analyses, such as one oficial with one peón; a Gang is a cost figure in the Catalog, while a Crew is a group of real people on the Team page.
+_Avoid_: Crew (real people), squad, team
+
+**Equipment rate**:
+A Resource for a kind of machine or tool with an Hourly cost, such as a 350 L mixer; an Equipment rate prices a kind of machine, while Equipment is a specific machine the company owns.
+_Avoid_: Equipment (the physical machine), machinery, rate card
+
+**Hourly cost**:
+The Cost of using an Equipment rate for one hour, covering ownership, upkeep, fuel and operator.
+_Avoid_: Rental, daily cost, tariff
+
+**Family**:
+The group a Resource is filed under in the Catalog, such as aceros or cemento y agregados.
+_Avoid_: Category, class, type (that is Material, Labor, Equipment or Work item)
+
+**Unit**:
+The measure a Resource is counted and costed in, such as m², kg, jornada or hora.
+_Avoid_: UoM, measure
+
+**FASAR parameters**:
+The yearly figures the company uses to turn a daily wage into a Real wage: social security and housing contributions, the UMA and minimum wage, paid and unworked days, bonuses and other charges.
+_Avoid_: Factors, settings, FSR (that is the resulting factor)
+
+**Real wage**:
+What one day of a Labor category really costs the company: the daily wage times the real wage factor given by the FASAR parameters.
+_Avoid_: Salary, wage (alone), daily rate, cost (alone)
+
+**Labor rate**:
+The daily amount one person costs on one Site: either the Real wage of a Labor category, which follows the Catalog, or a fixed amount negotiated with that person, which does not.
+_Avoid_: Salary, wage, pay rate, rate (alone)
+
+**Accrued labor cost**:
+The labor a Site has consumed so far: one Labor rate for every day a person checked in on it, counted against the Site's budget beside recorded Expenses but never recorded as one.
+_Avoid_: Payroll, wages paid, labor expense
+
+**Estimate** (phase 2):
+A priced proposal for a Site made of Sections and Work items with quantities, with overheads and profit added to the Costs; an Estimate is what the company offers to charge, while a Budget is what it allows itself to spend.
+_Avoid_: Budget, presupuesto (in English UI), quote, bid
+
+**Section** (phase 2):
+A heading of an Estimate that groups Work items, such as preliminares or cimentación, possibly nested.
+_Avoid_: Partida (in English UI), Phase, chapter, WBS
 
 ## Sites and tasks
 
