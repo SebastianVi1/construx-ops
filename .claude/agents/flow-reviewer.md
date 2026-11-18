@@ -21,6 +21,6 @@ Report findings ordered by severity, each with the exact steps to reproduce, exp
 Required skills (invoke with the Skill tool every time the task matches, not once per session, and before the first browser action):
 - `agent-browser` whenever you drive the browser; use the Playwright tools only as fallback if it is unavailable.
 - `superpowers:verification-before-completion` before you report that a flow passes.
-If a required skill is unavailable, say so in the handoff instead of skipping silently.
+If a required skill is unavailable, say so in the ticket instead of skipping silently.
 
-Return the handoff format from `.agents/TEAM.md`.
+Return the ticket format from `.agents/TEAM.md`.
