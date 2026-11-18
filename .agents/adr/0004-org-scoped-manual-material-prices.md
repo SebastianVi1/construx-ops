@@ -1,6 +1,6 @@
 # Material prices are organization-scoped and recorded, not scraped
 
-Status: accepted (2026-10-27)
+Status: accepted (2026-10-27); superseded in part by ADR 0008 (observations become cost history; catalog scope widened)
 
 Each organization keeps its own catalog of Materials, Suppliers and Price observations. Prices enter only by manual entry or CSV import, with the source stored on each observation. Prices are MXN, shelf price including IVA.
 
