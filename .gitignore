@@ -20,5 +20,8 @@ plan_excel.md
 docs/plan/
 docs/superpowers/
 
+construx-promo/
+construx-promo-backups/
+.codegraph/
 .playwright-mcp/
 .claude/worktrees/
