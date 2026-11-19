@@ -39,6 +39,8 @@ services:
     build:
       target: dev
     image: construx-landing:dev
+    # Bun can segfault (exit 139) on a cold start; restart instead of leaving nginx on a 502
+    restart: on-failure
     volumes:
       - ./construx-landing-page:/app
       - /app/node_modules
