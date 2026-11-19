@@ -12,7 +12,7 @@ This is the `construx-ops` umbrella repo. The three subprojects are git submodul
 | `construx-dashboard/` | Web app users log into | React 19, TypeScript, Vite 8, Bun |
 | `construx-landing-page/` | Marketing / early-access site | Astro, Tailwind CSS 4, Bun |
 
-Construx is a multi-tenant SaaS for construction companies (organizations → sites/projects → people, tasks, plans, finance). Read `.agents/CONTEXT.md` first for product vision, status vs vision, known issues and open design decisions. Domain vocabulary lives in `GLOSSARY.md`; ADRs and API contracts in `.agents/adr/` and `.agents/contracts/`; an Obsidian architecture vault (start at `architecture-vault/Start Here.md`) maps runtime, request flow and domain. Each subproject has its own `AGENTS.md` / `CLAUDE.md` with detailed conventions; read the one for the subproject you touch. The dashboard's `CLAUDE.md` is more accurate than its `AGENTS.md`.
+Construx is a multi-tenant SaaS for construction companies (organizations → sites/projects → people, tasks, plans, finance). Read `.agents/CONTEXT.md` first for product vision, status vs vision, known issues and open design decisions. Domain vocabulary lives in `GLOSSARY.md`; ADRs and API contracts in `.agents/adr/` and `.agents/contracts/`; a Markdown "second brain" in `architecture-vault/` (start at `architecture-vault/INDEX.md`) maps architecture, features, endpoints and future features. Each subproject has its own `AGENTS.md` / `CLAUDE.md` with detailed conventions; read the one for the subproject you touch. The dashboard's `CLAUDE.md` is more accurate than its `AGENTS.md`.
 
 ## Commands
 
