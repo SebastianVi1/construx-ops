@@ -109,6 +109,20 @@
       "skillPath": "skills/productivity/handoff/SKILL.md",
       "computedHash": "f60a2c3688379b7a306b3a7b8dd4120eab39da44c74fa2cb62d6424935f04aa7"
     },
+    "hyperframes": {
+      "source": "heygen-com/hyperframes",
+      "commit": "d205e594870504db70d9d22e8753f3f993af7d8f",
+      "sourceType": "github",
+      "skillPath": "skills/hyperframes/SKILL.md",
+      "computedHash": "fd414b5d6b6b4f27d252a9c9cd2531c06b743c58fad6d85be6df998963d7e68b"
+    },
+    "hyperframes-cli": {
+      "source": "heygen-com/hyperframes",
+      "commit": "d205e594870504db70d9d22e8753f3f993af7d8f",
+      "sourceType": "github",
+      "skillPath": "skills/hyperframes-cli/SKILL.md",
+      "computedHash": "08fe6ce267a6054500b7da0590c0b5119ff053703785f17ab6c794c54670e544"
+    },
     "impeccable": {
       "source": "pbakaus/impeccable",
       "sourceType": "github",
@@ -144,6 +158,13 @@
       "sourceType": "github",
       "skillPath": "skills/in-progress/loop-me/SKILL.md",
       "computedHash": "5dac8f9919f3e1a528a4f1f00db07c81c3e6092e706376d81c697d16422ab163"
+    },
+    "media-use": {
+      "source": "heygen-com/hyperframes",
+      "commit": "e9eac3f9d4887ae380ab8d840bf8e1a2be7eb998",
+      "sourceType": "github",
+      "skillPath": "skills/media-use/SKILL.md",
+      "computedHash": "ef91ddb68dba0751dcf590ba5a2929c20e52817ddd9b402e9b5019d8edee5e0c"
     },
     "migrate-to-shoehorn": {
       "source": "mattpocock/skills",
