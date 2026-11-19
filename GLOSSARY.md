@@ -4,6 +4,8 @@ Construx digitizes the operations of construction companies: their sites, people
 
 ## Prices
 
+The terms in this section describe a proposed future catalog. The current application only keeps a placeholder `/prices` page; it has no pricing services or stored catalog.
+
 **Catalog**:
 A company's own list of everything building costs it, imported from the cost database it holds a licence for or typed by hand; a company has exactly one Catalog and never sees another company's.
 _Avoid_: Price list, database, ConstruBASE (the licensed source, not the Catalog itself)
