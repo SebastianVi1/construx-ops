@@ -27,6 +27,7 @@ Vault solo Markdown. Cada nota enlaza a su fuente real en el código. Si algo no
 | 2 | Funcionalidades | [[02-funcionalidades/Documentos]] | Carpetas y archivos por obra |
 | 2 | Funcionalidades | [[02-funcionalidades/Reportes]] | Reporte PDF de obra |
 | 2 | Funcionalidades | [[02-funcionalidades/Excel]] | Hojas de cálculo en el dashboard |
+| 2 | Funcionalidades | [[02-funcionalidades/Guía de inicio]] | Checklist de primeros pasos, tours y progreso por miembro |
 | 3 | Endpoints | [[03-endpoints/API]] | Todos los endpoints REST agrupados por módulo |
 | 4 | Frontend | [[04-frontend/Dashboard]] | Rutas, features, capa de API, i18n |
 | 4 | Frontend | [[04-frontend/Landing]] | Sitio de marketing (Astro) |

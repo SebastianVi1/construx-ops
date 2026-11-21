@@ -27,6 +27,14 @@ Prefijos: `ORG = /api/organizations/{organizationId}` · `SITE = ORG/projects/{p
 | DELETE | `ORG/invitations/{invitationId}` |
 | POST | `/api/invitations/accept` |
 
+## Guía de inicio
+Progreso propio del miembro, sin permiso (`OrgScope`). Contrato: `construx/docs/guide.md` · [[02-funcionalidades/Guía de inicio]]
+
+| Método | Ruta |
+|---|---|
+| GET, PUT | `ORG/guide` |
+| PUT | `ORG/guide/steps/{stepId}` |
+
 ## Obras
 | Método | Ruta |
 |---|---|
