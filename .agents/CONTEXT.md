@@ -124,7 +124,8 @@ Branch `feat/user-profile` (unmerged) adds `UserProfile` (full name, E.164 phone
 - Routes: `/`, `/login`, `/register`, `/verify-email`, `/auth/complete` (after Google OAuth), `/account`.
 - Auth is fully wired to the backend contract (login, register, Google, email verification, session handling).
 - The home view (sites and an activity feed) uses **hardcoded mock data**.
-- An onboarding modal after registration asks "What best describes your role?" (Owner/Developer, General contractor, Architect/Engineer, Subcontractor). Answers are stored **only in `localStorage`**; no backend endpoint exists for them. The questions are config-driven (`src/features/onboarding/questions.ts`) so they can later come from the backend.
+- An onboarding modal after registration asks two questions (`intent`, `businessType`) and saves them with `GET`/`PUT /api/onboarding` (ADR 0002: they describe the user and assign no role). `localStorage` (`construx.onboarding`) only holds an answer given on the register page until that `PUT` succeeds. The questions are config-driven (`src/features/onboarding/questions.ts`).
+- A getting-started guide (`src/features/guide/`) follows onboarding: a per-Company checklist chosen from the member's permissions, with spotlight tours, progress stored per membership (`/api/organizations/{id}/guide`). Recipe for new steps: `src/features/guide/README.md`.
 - Reusable pieces: a form system (`components/form`) and an accessible modal plus question modal (`components/modal`).
 - Design tokens live in `design.md`: a precise, blue-led look (primary `#175CD3`, ink `#14263D`, canvas `#F5F8FC`), IBM Plex Sans and IBM Plex Mono.
 
@@ -150,7 +151,8 @@ Legend: ✅ exists · 🟡 partial (modeled without API, or incomplete) · ❌ m
 | Worker profiles | 🟡 | Only the unmerged `feat/user-profile` (name, phone); no trade or specialty |
 | Sites / projects | 🟡 | Address, dates, status and a budget split into phase and task budgets (USD); no client |
 | Activities, tasks and progress | 🟡 | `Goal` → `Activity`, no API, no progress calculation |
-| Onboarding flow (invited vs Owner vs Worker) | ❌ | Dashboard asks the role but keeps it in `localStorage` |
+| Onboarding flow (invited vs Owner vs Worker) | 🟡 | Answers saved with `GET`/`PUT /api/onboarding` (`intent`, `businessType`); roles come only from creating a Company or accepting an invitation (ADR 0002) |
+| Getting-started guide | ✅ | Per-membership checklist (`V40`, `GET`/`PUT /guide`, `PUT /guide/steps/{stepId}`); sections Run your company, Manage your sites, Finance chosen by permissions; steps tick on real actions; tours via driver.js. Steps live only in the dashboard (`features/guide/catalog.ts`); contract `construx/docs/guide.md` |
 | Worker location on site | ❌ | No check-in, attendance or location |
 | Plans / PDFs, zones, floors | 🟡 | Image plans per site in private S3 (presigned upload and view); no PDFs, revisions, zones or floors |
 | Finance (purchases, expenses) | ❌ | |

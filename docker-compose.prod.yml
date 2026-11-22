@@ -35,6 +35,8 @@ services:
         VITE_API_BASE_URL: /api
         # Build-time value; defaults to the OAuth start route on the public dashboard host
         VITE_OAUTH2_AUTHORIZATION_URL: ${VITE_OAUTH2_AUTHORIZATION_URL:-https://${DASHBOARD_HOST}/oauth2/authorization/google}
+        # Landing page the in-app guide links to ("Learn more"); defaults to the public landing host
+        VITE_LANDING_URL: ${VITE_LANDING_URL:-https://${LANDING_HOST}}
         # Handsontable production license; empty uses the non-commercial evaluation key
         VITE_HANDSONTABLE_LICENSE: ${VITE_HANDSONTABLE_LICENSE:-}
     image: construx-dashboard:prod
