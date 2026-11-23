@@ -1,7 +1,7 @@
 # Construx — Segundo cerebro (índice principal)
 
 Vault solo Markdown. Cada nota enlaza a su fuente real en el código. Si algo no está aquí, búscalo primero en esta tabla.
-Ábrelo en Obsidian (*Open folder as vault*) o léelo en cualquier visor Markdown. Última verificación: 2026-11-19.
+Ábrelo en Obsidian (*Open folder as vault*) o léelo en cualquier visor Markdown. Última verificación: 2026-11-23.
 
 ## Mapa del vault
 
@@ -15,7 +15,8 @@ Vault solo Markdown. Cada nota enlaza a su fuente real en el código. Si algo no
 | 1 | Arquitectura | [[01-arquitectura/Seguridad y autorización]] | JWT + refresh, CSRF, `OrgScope`/`SiteScope`, roles |
 | 1 | Arquitectura | [[01-arquitectura/Persistencia]] | PostgreSQL, Flyway, JPA validate, S3 |
 | 2 | Funcionalidades | [[02-funcionalidades/Identidad y cuenta]] | Registro, login, Google, perfil, onboarding |
-| 2 | Funcionalidades | [[02-funcionalidades/Organizaciones y miembros]] | Empresa, roles, miembros, invitaciones |
+| 2 | Funcionalidades | [[02-funcionalidades/Organizaciones y miembros]] | Empresa, miembros, invitaciones |
+| 2 | Funcionalidades | [[02-funcionalidades/Roles y permisos]] | Roles Built-in y Custom, catálogo de permisos, sync al arrancar, asignación |
 | 2 | Funcionalidades | [[02-funcionalidades/Sitios y acceso]] | Obras, staff por obra, presupuesto |
 | 2 | Funcionalidades | [[02-funcionalidades/Fases y tareas]] | Goals, Activities, equipo, Gantt, mis tareas |
 | 2 | Funcionalidades | [[02-funcionalidades/Finanzas]] | Presupuestos, gastos, finanzas de organización |
@@ -41,7 +42,7 @@ Vault solo Markdown. Cada nota enlaza a su fuente real en el código. Si algo no
 |---|---|---|
 | Un endpoint concreto | [[03-endpoints/API]] | `construx/src/main/java/org/andre/construx/modules/*/controller/` |
 | Una pantalla del dashboard | [[04-frontend/Dashboard]] | `construx-dashboard/src/App.tsx` |
-| Permisos de un rol | [[01-arquitectura/Seguridad y autorización]] | `construx/src/main/resources/seeded-roles.properties` |
+| Permisos de un rol | [[02-funcionalidades/Roles y permisos]] | `construx/src/main/resources/built-in-roles.yml`, `permission-catalog.yml` |
 | Migraciones de BD | [[01-arquitectura/Persistencia]] | `construx/src/main/resources/db/migration/` |
 | Contrato de API | [[03-endpoints/API]] | `.agents/contracts/v1-api.md`, `construx/docs/*.md` |
 | Glosario completo | [[00-vision/Vocabulario]] | `GLOSSARY.md` |

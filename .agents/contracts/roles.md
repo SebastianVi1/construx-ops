@@ -105,6 +105,7 @@ Access: `MANAGE_ROLES` or `MANAGE_MEMBERS` (today: `MANAGE_MEMBERS` only). Order
 - For `CUSTOM`, `names.en` and `names.es` both equal `name`, and `description.en` and `description.es` both equal the stored description (or both are null).
 - `system` stays for backward compatibility: true for `OWNER` and `BUILT_IN`. It means "name is fixed", not "permissions are fixed".
 - `memberCount` counts `ACTIVE` and `SUSPENDED` memberships.
+- _As shipped:_ `pendingInvitationCount` counts invitations with status `PENDING`, expired ones included (as in the invitations list).
 - `editable` and `assignable` apply §3 for the caller. `assignable` is false for Owner and for any role the caller cannot assign or invite into.
 
 ### 5.2 `GET /roles/{code}` (new)
@@ -131,17 +132,19 @@ Returns 201 with the 5.2 body. "Duplicate" is done by the dashboard: it pre-fill
 
 Replaces the full permission set. For `BUILT_IN`, `name` and `description` must be absent (`ROLE_NAME_FIXED` 400), and a change sets `customized = true`; a PUT that results in exactly the defaults sets `customized = false`. Errors: those of 5.3, plus `ROLE_OWNER_LOCKED` 400, `ROLE_OWN` 403, `ROLE_CHANGED` 409 (stale `version`). Returns 200 with the 5.2 body.
 
+_As shipped (#107):_ for a `CUSTOM` role, `name` and `description` travel together. A body with `name` renames the role and sets the description to what it carries (null or blank clears it); a body with only `description` sets it; a body with neither keeps both. Every successful PUT raises `version`, even a no-op.
+
 ### 5.5 `POST /roles/{code}/restore-defaults` (new)
 
 Body `{ "version": 3 }`. `BUILT_IN` only (`ROLE_NOT_BUILT_IN` 400). Sets the permissions to the defaults, sets `customized = false`, and marks every catalog action as known. Authority as 5.4. Returns 200 with the 5.2 body.
 
 ### 5.6 `DELETE /roles/{code}?replacement={code}` (new)
 
-`CUSTOM` only (`ROLE_BUILT_IN_UNDELETABLE` 400; the Owner role gets `ROLE_OWNER_LOCKED`). A replacement is required whenever any membership (`ACTIVE`, `SUSPENDED` or `LEFT`) or any invitation (any status) still references the role, because the foreign keys need a role. Without one the call fails with `ROLE_REPLACEMENT_REQUIRED` 409, with properties `memberCount` (active + suspended), `formerMemberCount` (left) and `pendingInvitationCount`. The replacement must be another role of the company, not the Owner role, and assignable by the caller (`ROLE_REPLACEMENT_INVALID` 400 / `ROLE_ABOVE_CALLER` 403). Every referencing membership and invitation moves to the replacement in the same transaction, then the role is deleted. Returns 204. The caller can never be among the moved members, because deleting your own role is already `ROLE_OWN`.
+`CUSTOM` only (`ROLE_BUILT_IN_UNDELETABLE` 400; the Owner role gets `ROLE_OWNER_LOCKED`). A replacement is required whenever any membership (`ACTIVE`, `SUSPENDED` or `LEFT`) or any invitation (any status) still references the role, because the foreign keys need a role. Without one the call fails with `ROLE_REPLACEMENT_REQUIRED` 409, with properties `memberCount` (active + suspended), `formerMemberCount` (left) and `pendingInvitationCount`. _As shipped (#107):_ the 409 also carries `invitationCount` (invitations of any status), which explains a 409 where the three named counts are 0. The replacement must be another role of the company, not the Owner role, and assignable by the caller (`ROLE_REPLACEMENT_INVALID` 400 / `ROLE_ABOVE_CALLER` 403). Every referencing membership and invitation moves to the replacement in the same transaction, then the role is deleted. Returns 204. The caller can never be among the moved members, because deleting your own role is already `ROLE_OWN`. _As shipped:_ a `replacement` sent for an unreferenced role is still validated, and delete takes no `version`.
 
 ### 5.7 `GET /members?status=…&role={code}` (changed)
 
-Adds an optional `role` filter for the People tab. Access unchanged (`MANAGE_MEMBERS`).
+Adds an optional `role` filter for the People tab. Access unchanged (`MANAGE_MEMBERS`). _As shipped:_ a blank `role` means no filter; an unknown code returns `[]`, not 404.
 
 ### 5.8 `PATCH /members/{membershipId}` (changed)
 
@@ -149,7 +152,7 @@ Same body (`{ "roleCode": "…" }`). Adds the §3 assignment rules. The existing
 
 ### 5.9 `POST /invitations` (changed)
 
-Adds the §3 invitation rule (`ROLE_ABOVE_CALLER` 403).
+Adds the §3 invitation rule (`ROLE_ABOVE_CALLER` 403). _As shipped:_ inviting as the Owner role is `ROLE_OWNER_LOCKED` 400 (was `INVALID_ARGUMENT`); an unknown role stays 404.
 
 ### 5.10 `GET /api/permissions/catalog` (new, not company-scoped)
 

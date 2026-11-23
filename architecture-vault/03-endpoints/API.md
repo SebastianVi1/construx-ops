@@ -20,12 +20,27 @@ Prefijos: `ORG = /api/organizations/{organizationId}` · `SITE = ORG/projects/{p
 |---|---|
 | POST, GET | `/api/organizations` |
 | GET, PATCH, DELETE | `ORG` |
-| GET | `ORG/me`, `ORG/roles`, `ORG/members` |
+| GET | `ORG/me`, `ORG/members` (`?status=&role=`) |
 | PATCH, DELETE | `ORG/members/{membershipId}` |
 | PATCH | `ORG/members/{membershipId}/status` |
 | POST, GET | `ORG/invitations` |
 | DELETE | `ORG/invitations/{invitationId}` |
 | POST | `/api/invitations/accept` |
+
+## Roles y permisos
+Contratos: `.agents/contracts/roles.md`, `construx/docs/organizations.md` · [[02-funcionalidades/Roles y permisos]]
+
+| Método | Ruta | Permiso |
+|---|---|---|
+| GET | `/api/permissions/catalog` | cualquier usuario autenticado |
+| GET, POST | `ORG/roles` | GET: `MANAGE_ROLES` o `MANAGE_MEMBERS`; POST: `MANAGE_ROLES` |
+| GET, PUT, DELETE | `ORG/roles/{code}` (`DELETE ?replacement={code}`) | GET: `MANAGE_ROLES` o `MANAGE_MEMBERS`; PUT/DELETE: `MANAGE_ROLES` |
+| POST | `ORG/roles/{code}/restore-defaults` | `MANAGE_ROLES` |
+
+- Rol en lista: `{ id, code, kind, name, names, description, system, customized, memberCount, pendingInvitationCount, editable, assignable, version }`; el detalle agrega `permissions` y `defaults`.
+- Todo resumen de rol en otras respuestas (`/me`, `myRole`, miembros, invitaciones, staff de obra) lleva `names: { en, es }`.
+- `PATCH ORG/members/{membershipId}` e invitaciones aplican las reglas de `RoleAuthority`.
+- Códigos de error: `ROLE_ABOVE_CALLER` 403, `ROLE_OWN` 403, `ROLE_OWNER_LOCKED` 400, `ROLE_SCOPE_INVALID` 400, `ROLE_DEPENDENCY_MISSING` 400 (`action`, `requires`), `ROLE_NAME_INVALID` 400, `ROLE_NAME_FIXED` 400, `ROLE_NAME_TAKEN` 409, `ROLE_LIMIT_REACHED` 409, `ROLE_CHANGED` 409, `ROLE_NOT_BUILT_IN` 400, `ROLE_BUILT_IN_UNDELETABLE` 400, `ROLE_REPLACEMENT_REQUIRED` 409 (`memberCount`, `formerMemberCount`, `pendingInvitationCount`, `invitationCount`), `ROLE_REPLACEMENT_INVALID` 400.
 
 ## Guía de inicio
 Progreso propio del miembro, sin permiso (`OrgScope`). Contrato: `construx/docs/guide.md` · [[02-funcionalidades/Guía de inicio]]

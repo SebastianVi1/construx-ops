@@ -13,6 +13,7 @@
 | 0007 | Asistencia es solo check-in | [[02-funcionalidades/Asistencia]] |
 | 0008 | Catálogo de costos = importación propia | [[02-funcionalidades/Precios]] |
 | 0009 | Costo laboral por día de check-in | [[02-funcionalidades/Finanzas]] |
+| 0010 | Roles Built-in editables y sincronizados desde un archivo; nadie actúa por encima de su rol | [[02-funcionalidades/Roles y permisos]] |
 
 ## Decisiones abiertas
 - Ubicación en tiempo real (GPS) vs solo check-in por zona.
