@@ -87,7 +87,7 @@ Common response `OrganizationResponse`:
 
 - Request: `{ "name": "Acme Builders" }`, name 1..160 after trim.
 - Permission: none beyond being authenticated (anyone may found a company; intent is not checked, ADR 0002). Scope: creates a new tenant.
-- Behavior, one transaction, invariants inside the `Organization` constructor: persist the organization, seed the five system roles (section 8) with their permissions, create the creator's `OrganizationMembership` with role `OWNER` (ACTIVE).
+- Behavior, one transaction, invariants inside the `Organization` constructor: persist the organization, create the Owner role and the Built-in roles of `built-in-roles.yml` with their default permissions (`.agents/contracts/roles.md` §6), create the creator's `OrganizationMembership` with role `OWNER` (ACTIVE).
 - 201 `OrganizationResponse`. Errors: 400 `VALIDATION_FAILED` / `INVALID_ARGUMENT` (blank or >160 name), 401.
 - Backfill: organizations created before this change had only the Owner role. Resolved by the Built-in role startup sync, which creates any missing Built-in role in every company on boot (Q5; `.agents/contracts/roles.md` §6).
 

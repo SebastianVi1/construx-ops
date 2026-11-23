@@ -133,6 +133,8 @@ Returns 201 with the 5.2 body. "Duplicate" is done by the dashboard: it pre-fill
 
 Replaces the full permission set. For `BUILT_IN`, `name` and `description` must be absent (`ROLE_NAME_FIXED` 400), and a change sets `customized = true`; a PUT that results in exactly the defaults sets `customized = false`. Errors: those of 5.3, plus `ROLE_OWNER_LOCKED` 400, `ROLE_OWN` 403, `ROLE_CHANGED` 409 (stale `version`). Returns 200 with the 5.2 body.
 
+_As shipped (check order of 5.3 and 5.4):_ the body is read first, so a missing `permissions` (or `version`) is `VALIDATION_FAILED` 400 and an unknown action or scope, or an action sent twice, is `ROLE_SCOPE_INVALID` 400 before any §3 check, even for a caller without `MANAGE_ROLES`. Then, on PUT: unknown role 404, the §3 edit rules, `ROLE_CHANGED`, the name rules (`ROLE_NAME_FIXED`, `ROLE_NAME_INVALID`, `ROLE_NAME_TAKEN`), then the §4 set rules. On POST: the §3 create rule, `ROLE_NAME_INVALID`, the §4 set rules, `ROLE_LIMIT_REACHED`, `ROLE_NAME_TAKEN`.
+
 _As shipped (#107):_ for a `CUSTOM` role, `name` and `description` travel together. A body with `name` renames the role and sets the description to what it carries (null or blank clears it); a body with only `description` sets it; a body with neither keeps both. Every successful PUT raises `version`, even a no-op.
 
 ### 5.5 `POST /roles/{code}/restore-defaults` (new)
@@ -234,14 +236,15 @@ roles:
 Load rules (each one fails the boot):
 - The code matches `[A-Z][A-Z0-9_]{0,63}`, is not `OWNER` and does not start with `CUSTOM_`.
 - No duplicate codes.
-- Names are 1 to 100 characters in both languages, and the EN and ES names are unique across all Built-in roles.
+- Names are 1 to 100 characters in both languages, and the EN and ES names are unique across all Built-in roles. _As shipped:_ unique across all roles including Owner, ignoring case.
+- _As shipped:_ descriptions are 1 to 280 characters in both languages.
 - Grants pass §4.
 
 The current grants of the 7 roles carry over unchanged. EN names are copied from the dashboard's `rolesMessages`; descriptions are new copy.
 
 ### 6.2 Sync (`BuiltInRoleSync`, runs on `ApplicationReadyEvent`, one transaction, idempotent)
 
-_As shipped:_ the event fires after the server starts listening, so on the very first boot after `V41` requests can briefly reach companies the sync has not reached yet (missing `RESIDENT` / `SITE_MANAGER` / `SUPERINTENDENT`, an Owner without a new action). Later boots only differ while a changed file is being applied. Every role the sync changes gets its `version` raised by one, so an editor holding the old version gets `ROLE_CHANGED`.
+_As shipped:_ the event fires after the server starts listening, so on the very first boot after `V41` requests can briefly reach companies the sync has not reached yet (missing `RESIDENT` / `SITE_MANAGER` / `SUPERINTENDENT`, an Owner without a new action). Later boots only differ while a changed file is being applied. Every role the sync changes gets its `version` raised by one, so an editor holding the old version gets `ROLE_CHANGED`. A role write during the sync never fails the boot: the sync locks each company's roles (then the company) while it syncs that company, so the write waits for it or the sync waits for the write; if the sync still fails on a concurrent write it runs once more, and after that the boot continues without it (logged) and the next boot applies the file.
 
 For every company:
 1. **Owner:** ensure it holds every catalog action at `ORGANIZATION`. This replaces the Owner part of future backfills.
@@ -251,6 +254,7 @@ For every company:
    - If it exists and `customized = false`, set its permissions to exactly the defaults.
    - If it exists and `customized = true`, add the default grant for each catalog action not yet known to the role (if the default grants it). Then validate the result against §4. If the result is invalid, leave that action out and log a warning naming the company, role and action.
    - In every case, set the stored `name` to the file's ES name unless that clashes with a custom role name in that company (then keep the old one and log a warning), and mark every catalog action known.
+   - _As shipped:_ a role created here whose ES name another role of the company already holds is stored as `<ES> (<CODE>)` (for example `Superintendente (SUPERINTENDENT)`), or as the code alone when that is taken too or longer than 100 characters, with a warning.
 3. **For each Built-in role in the database whose code is no longer in the file:** convert it to a custom role (`seeded = false`, `customized = false`, `description` null). Members, invitations, permissions, stored name and code are unchanged. Audit `CONVERT_TO_CUSTOM`. A converted role may take a company past 30 custom roles; the limit applies only to creating roles.
 4. **Audit:** one `SYNC` event per role whose permissions or name actually changed (actor null, before/after permission sets). Nothing is audited when nothing changed.
 
@@ -275,7 +279,7 @@ The actor is the caller's membership id, or null for the sync.
 
 - The sidebar entry "Team / Equipo" becomes the group **People / Personal**, with sub-items **Members / Miembros** (`/members`) and **Roles & permissions / Roles y permisos** (`/members/roles`).
 - The group shows when the caller holds `MANAGE_MEMBERS` or `MANAGE_ROLES` at `ORGANIZATION` scope. Members shows with `MANAGE_MEMBERS`, Roles & permissions with either.
-- On phones (`workspace-tabbar`) there is one tab, **People / Personal**, and both pages show a tab strip at the top. The strip is hidden when only one sub-page is visible.
+- On phones (`workspace-tabbar`) there is one tab, **People / Personal**, and both pages show a tab strip at the top. The strip is hidden when only one sub-page is visible. _As shipped:_ the strip shows up to 1080px wide (tablets too), where the sidebar gives way to the tab bar.
 - The breadcrumb section for `/members` and `/members/roles…` is **People / Personal**.
 
 ### 8.2 Roles & permissions page (`/members/roles`)
@@ -291,6 +295,7 @@ A list of roles, each with its display name in the current language, a kind badg
 - Switching a requirement off, or lowering it, also switches off or lowers whatever depends on it, after a confirm listing them.
 - A role with no permissions shows a warning: "Members with this role can sign in but see nothing."
 - Save sends 5.4. `ROLE_CHANGED` reloads the role with a notice.
+  - _As shipped:_ on `ROLE_CHANGED` the dashboard keeps the user's unsaved draft and loads the newer version underneath. The sticky save bar says the changes were not saved (or, after Restore defaults, that the defaults were not restored), says "Loading their version…" until it arrives and only then that it is loaded, and lets the user Save again (replacing their version) or Discard (keeping it). Save stays off until their version is loaded; if loading it fails, the bar says so and offers Try again. A newer version that arrives while the user is editing never replaces the draft either. "Permissions saved" shows in the save bar, where the user pressed Save. A role deleted meanwhile (404) shows as not found, never from the remembered copy.
 - Built-in roles show "Restore defaults", with a confirm that previews the differences from `defaults`.
 - Custom roles show name and description fields and "Delete role", which opens a dialog. If the role is held, the dialog requires a replacement chosen from the assignable roles and states how many members and invitations will move.
 
