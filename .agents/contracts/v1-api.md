@@ -2,7 +2,7 @@
 
 Status: proposed, 2026-10-26. Author: Lead Architect. Scope: onboarding intent, organizations, roles seeding, invitations, projects, goals, activities (tasks), project access. Backend Dev and Frontend Dev build against this document; contract changes go through the Architect.
 
-Decisions behind it: ADR 0001 (Task = Activity), ADR 0002 (registration intent vs role), ADR 0003 (internal assignment only), ADR 0008 (the cost catalog is the licensee's own import), ADR 0009 (labor cost accrues per Check-in day). Terms: Company = `Organization`, Site = `Project`, Phase = `Goal`, Task = `Activity`, site staff = `ProjectAccess`; catalog terms in `GLOSSARY.md` "Prices".
+Decisions behind it: ADR 0001 (Task = Activity), ADR 0002 (registration intent vs role), ADR 0003 (internal assignment only), ADR 0008 (the cost catalog is the licensee's own import), ADR 0009 (labor cost accrues per Check-in day), ADR 0010 (editable, synced Built-in roles; role management in `.agents/contracts/roles.md`). Terms: Company = `Organization`, Site = `Project`, Phase = `Goal`, Task = `Activity`, site staff = `ProjectAccess`; catalog terms in `GLOSSARY.md` "Prices".
 
 ## 0. Conventions
 
@@ -87,9 +87,9 @@ Common response `OrganizationResponse`:
 
 - Request: `{ "name": "Acme Builders" }`, name 1..160 after trim.
 - Permission: none beyond being authenticated (anyone may found a company; intent is not checked, ADR 0002). Scope: creates a new tenant.
-- Behavior, one transaction, invariants inside the `Organization` constructor: persist the organization, seed the five system roles (section 8) with their permissions, create the creator's `OrganizationMembership` with role `OWNER` (ACTIVE).
+- Behavior, one transaction, invariants inside the `Organization` constructor: persist the organization, create the Owner role and the Built-in roles of `built-in-roles.yml` with their default permissions (`.agents/contracts/roles.md` §6), create the creator's `OrganizationMembership` with role `OWNER` (ACTIVE).
 - 201 `OrganizationResponse`. Errors: 400 `VALIDATION_FAILED` / `INVALID_ARGUMENT` (blank or >160 name), 401.
-- Backfill: organizations created before this change have only the Owner role. A one-off data migration must add the four other roles to them (see open question Q5).
+- Backfill: organizations created before this change had only the Owner role. Resolved by the Built-in role startup sync, which creates any missing Built-in role in every company on boot (Q5; `.agents/contracts/roles.md` §6).
 
 ### GET /api/organizations
 
@@ -120,6 +120,7 @@ Lets the dashboard gate UI. The server stays the authority; this is display data
 ### GET /api/organizations/{organizationId}/roles
 
 - Permission: `MANAGE_MEMBERS` / `ORGANIZATION`. 200 `[ { "id": "uuid", "code": "WORKER", "name": "Trabajador", "system": true } ]`. Used by the invite form. Errors: 403, 404.
+- Superseded: access, response fields and the role write endpoints are now defined in `.agents/contracts/roles.md` §5.
 
 ### GET /api/organizations/{organizationId}/members
 
@@ -131,7 +132,7 @@ Lets the dashboard gate UI. The server stays the authority; this is display data
 ```
 `fullName` is `null` if the user has no profile. Errors: 403, 404.
 
-Member removal, role change and suspension endpoints are out of v1 scope (entity methods exist; add with the members screen).
+Member removal, role change and suspension endpoints are out of v1 scope (entity methods exist; add with the members screen). Since built: role change (`PATCH .../members/{membershipId}`) and the `role` filter on this list follow `.agents/contracts/roles.md` §3 and §5.7–5.8; role summaries gain `names` (§5.11).
 
 ---
 
@@ -398,6 +399,8 @@ The file never passes through the API: the client asks for a presigned `PUT` URL
 
 ## 8. Seeded permission matrix
 
+> Superseded for role management by `.agents/contracts/roles.md` and ADR 0010: Built-in roles (the four below plus `RESIDENT`, `SITE_MANAGER`, `SUPERINTENDENT`) are now editable per company, defined in `construx/src/main/resources/built-in-roles.yml` and kept in sync at startup, and the dashboard shows names from the API (`names`) instead of localizing by `code`. The matrix below is the original v1 seed, kept for history; the file is the source of truth.
+
 Five system roles are created for every new organization by the `Organization` constructor. `code` is the stable identifier used by the API; `name` is informational and stored in Spanish like the existing Owner (`Propietario`). The dashboard localizes display by `code`.
 
 Entity invariant (Backend Dev): today `OrganizationRole.systemRole` means "Owner" (`OrganizationMembership` rejects a `systemRole` for anyone but the creator and blocks suspend/leave). Do NOT mark the other four roles `systemRole`. Add a second flag `seeded` (boolean, default false): seeded roles cannot be renamed, regranted or revoked (same guards as `systemRole` in `rename/grant/revoke`), and codes `ADMINISTRATOR`, `MEMBER`, `WORKER`, `FINANCE` become reserved for custom roles like `OWNER`. Factory: `OrganizationRole.seeded(organization, code, name, grants)` where each grant goes through `Permission.changeScope` validation.
@@ -426,7 +429,7 @@ Scopes: `ORG` = `ORGANIZATION`, `PRJ` = `PROJECT` (needs a `ProjectAccess`), `OW
 Notes:
 - Owner is built by the existing `OrganizationRole.owner()` (every action at `ORG`).
 - Administrator "all except billing, organization deletion and Owner transfer": the enum has no billing or deletion action, so those currently live under `MANAGE_ORGANIZATION`. Until the enum is split, Administrator does not get `MANAGE_ORGANIZATION`, which also means it cannot rename the organization (Q2). Owner transfer does not exist in v1; the Owner role can never be assigned by invitation or `changeRole`.
-- When role-management endpoints are built later (not in v1), the rule must be "a caller cannot grant an action/scope they do not hold" because Administrator has `MANAGE_ROLES`.
+- Role management is built: see `.agents/contracts/roles.md` (§3 "never above your own role": a caller cannot create, edit, assign or invite into a role that does not fit within their own) and ADR 0010.
 - Finance holds `VIEW_PROJECT` plus the price actions (`VIEW_PRICES`, `MANAGE_PRICES`, now the whole cost catalog); finance actions are added to the enum and to this role with the finance module (needs a data migration for existing organizations).
 - `VIEW_PRICES` and `MANAGE_PRICES` (added for material prices by `V11__price_permissions.sql`, backfilled into the Owner and seeded roles of existing organizations; custom roles got nothing) now cover the whole cost catalog (ADR 0008): reads, writes, costs, FASAR parameters and imports. No new action was added for the catalog; per-person costs and the accrued labor cost use `VIEW_BUDGET`, assigning a Labor rate uses `MANAGE_PROJECT`.
 - `VIEW_BUDGET` and `MANAGE_BUDGET` (site, phase and task budgets, expenses) are organization-scope only; `V13__project_budget.sql` backfilled them into Owner, Administrator and Finance of existing organizations; custom roles get nothing.
@@ -457,7 +460,7 @@ Behavior check per role (acceptance cases for QA):
 - Q2 RESOLVED (user): Owner only edits organization details in v1; split `MANAGE_ORGANIZATION` when billing arrives.
 - Q3 (resolved, ADR 0005): no unassigned tasks; every task has a team with exactly one Lead.
 - Q4 (product, user): may a DONE task be reopened (worker marked it by mistake)? Needs a `reopen()` entity method and endpoint. Recommendation: add `POST .../reopen` for `MANAGE_ACTIVITY` non-`OWN` in the first fix iteration if users ask.
-- Q5 (Backend Dev + Architect): organizations already in the dev/prod database lack the four seeded roles. Needs a one-off backfill; confirm whether any real data exists before choosing script vs Flyway migration.
+- Q5 RESOLVED (roles contract §6.3): organizations already in the dev/prod database lacked some seeded roles. The Built-in role startup sync (`BuiltInRoleSync`, roles contract §6.2) creates every missing Built-in role in every company on boot, so no backfill migration is needed.
 - Q6 (Architect, later): pagination for lists. Unpaginated in v1; add `page`/`size` before activities per organization grow large. The cost catalog (7b) introduces the shape to reuse: `?page=&size=&sort=` and `{ content, page, size, totalElements, totalPages }`.
 - Q7 RESOLVED (user): Worker `VIEW_ACTIVITY` stays `PRJ` (all tasks on assigned sites).
 - Q8 (product, user): cap on organizations a user can create and on pending invitations per organization (abuse). Not enforced in v1 beyond the auth rate limiter.

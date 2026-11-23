@@ -100,13 +100,33 @@ _Avoid_: Goal (in the UI), milestone, stage
 One piece of work inside a Phase, with dates, a status and a Team.
 _Avoid_: Activity (in the UI), job, ticket
 
+**Member**:
+A person who belongs to a company, whether or not they are assigned to any Site; the company's members are listed under People.
+_Avoid_: Team (for the whole company), employee, user, staff
+
 **Organization role**:
-What a member is allowed to do across the company's Sites, such as Administrator, Member, Worker or Finance.
-_Avoid_: Task role, position
+The named set of Permissions a member holds in a company, such as Administrator, Worker or a company's own "Foreman with prices"; each member holds exactly one.
+_Avoid_: Task role, position, profile
+
+**Permission**:
+One action a role allows, such as managing plans, at one reach: the member's own Tasks, the Sites they are assigned to, or the whole company; anything a role does not grant is denied.
+_Avoid_: Right, privilege, deny rule
+
+**Owner role**:
+The Organization role of the company's creator, which always holds every Permission and can never be edited, given to anyone else or taken away.
+_Avoid_: Admin, superuser
+
+**Built-in role**:
+An Organization role every new company starts with, such as Administrator or Worker; a company may change its Permissions and later restore the defaults.
+_Avoid_: Seeded role (in the UI), system role, default role
+
+**Custom role**:
+An Organization role a company creates itself, from scratch or by duplicating another role.
+_Avoid_: User role, personal role
 
 **Team**:
 The people of a Site assigned to one Task; a Task always has at least one person in its Team.
-_Avoid_: Crew (for the whole team), assignee (for the group)
+_Avoid_: Crew (for the whole team), assignee (for the group), Team (for all of a company's Members)
 
 **Crew**:
 A named, reusable group of company members with one leader, kept on the Team page and assigned together to a floor plan zone; unlike a Team it belongs to the company, not to one Task.

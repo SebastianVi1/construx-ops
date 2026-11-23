@@ -7,6 +7,7 @@
 | Company / Empresa | `Organization` | — (raíz del tenant) |
 | Miembro | `OrganizationMembership` | Organization + `user-account` |
 | Site / Obra | `Project` | Organization |
+| Rol de organización (Owner / Built-in / Custom) | `OrganizationRole` (+ `Permission`) | Organization |
 | Staff de obra | `ProjectAccess` | Project + Membership |
 | Phase / Fase | `Goal` | Project |
 | Task / Tarea | `Activity` | Goal (ADR 0001) |
