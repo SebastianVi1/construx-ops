@@ -34,7 +34,7 @@ Contratos: `.agents/contracts/roles.md`, `construx/docs/organizations.md` · [[0
 |---|---|---|
 | GET | `/api/permissions/catalog` | cualquier usuario autenticado |
 | GET, POST | `ORG/roles` | GET: `MANAGE_ROLES` o `MANAGE_MEMBERS`; POST: `MANAGE_ROLES` |
-| GET, PUT, DELETE | `ORG/roles/{code}` (`DELETE ?replacement={code}`) | GET: `MANAGE_ROLES` o `MANAGE_MEMBERS`; PUT/DELETE: `MANAGE_ROLES` |
+| GET, PUT, DELETE | `ORG/roles/{code}` (`DELETE ?replacement={code}`) | GET: `MANAGE_ROLES` o `MANAGE_MEMBERS` (detalle con `permissions`, `defaults`, `formerMemberCount`, `invitationCount`); PUT: `MANAGE_ROLES`; DELETE: `MANAGE_ROLES`, más `MANAGE_MEMBERS` si el rol está en uso |
 | POST | `ORG/roles/{code}/restore-defaults` | `MANAGE_ROLES` |
 
 - Rol en lista: `{ id, code, kind, name, names, description, system, customized, memberCount, pendingInvitationCount, editable, assignable, version }`; el detalle agrega `permissions` y `defaults`.

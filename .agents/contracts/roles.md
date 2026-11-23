@@ -113,6 +113,7 @@ Access: `MANAGE_ROLES` or `MANAGE_MEMBERS` (today: `MANAGE_MEMBERS` only). Order
 Access as 5.1. Returns the 5.1 object plus:
 - `permissions`: `[{ "action": "VIEW_PLAN", "scope": "PROJECT" }]` in catalog order.
 - `defaults`: the definition-file set, for `BUILT_IN` only (so the UI can preview "Restore defaults"). Null otherwise.
+- _As shipped (review fixes):_ `formerMemberCount` (memberships with status `LEFT`) and `invitationCount` (invitations in any status), the same counts §5.6 reports, so the delete dialog can show everything that moves before the first `DELETE` (story 24). The list (§5.1) does not carry them.
 
 404 `NOT_FOUND` for an unknown code.
 
@@ -140,7 +141,7 @@ Body `{ "version": 3 }`. `BUILT_IN` only (`ROLE_NOT_BUILT_IN` 400). Sets the per
 
 ### 5.6 `DELETE /roles/{code}?replacement={code}` (new)
 
-`CUSTOM` only (`ROLE_BUILT_IN_UNDELETABLE` 400; the Owner role gets `ROLE_OWNER_LOCKED`). A replacement is required whenever any membership (`ACTIVE`, `SUSPENDED` or `LEFT`) or any invitation (any status) still references the role, because the foreign keys need a role. Without one the call fails with `ROLE_REPLACEMENT_REQUIRED` 409, with properties `memberCount` (active + suspended), `formerMemberCount` (left) and `pendingInvitationCount`. _As shipped (#107):_ the 409 also carries `invitationCount` (invitations of any status), which explains a 409 where the three named counts are 0. The replacement must be another role of the company, not the Owner role, and assignable by the caller (`ROLE_REPLACEMENT_INVALID` 400 / `ROLE_ABOVE_CALLER` 403). Every referencing membership and invitation moves to the replacement in the same transaction, then the role is deleted. Returns 204. The caller can never be among the moved members, because deleting your own role is already `ROLE_OWN`. _As shipped:_ a `replacement` sent for an unreferenced role is still validated, and delete takes no `version`.
+`CUSTOM` only (`ROLE_BUILT_IN_UNDELETABLE` 400; the Owner role gets `ROLE_OWNER_LOCKED`). A replacement is required whenever any membership (`ACTIVE`, `SUSPENDED` or `LEFT`) or any invitation (any status) still references the role, because the foreign keys need a role. Without one the call fails with `ROLE_REPLACEMENT_REQUIRED` 409, with properties `memberCount` (active + suspended), `formerMemberCount` (left) and `pendingInvitationCount`. _As shipped (#107):_ the 409 also carries `invitationCount` (invitations of any status), which explains a 409 where the three named counts are 0. The replacement must be another role of the company, not the Owner role, and assignable by the caller (`ROLE_REPLACEMENT_INVALID` 400 / `ROLE_ABOVE_CALLER` 403). Assignable needs `MANAGE_MEMBERS`, so deleting a role that is still referenced needs `MANAGE_MEMBERS` as well as `MANAGE_ROLES` (without it the call is `FORBIDDEN` 403); an unreferenced role needs only `MANAGE_ROLES`. The dashboard hides Delete for a referenced role when the caller lacks `MANAGE_MEMBERS`. Every referencing membership and invitation moves to the replacement in the same transaction, then the role is deleted. Returns 204. The caller can never be among the moved members, because deleting your own role is already `ROLE_OWN`. _As shipped:_ a `replacement` sent for an unreferenced role is still validated, and delete takes no `version`.
 
 ### 5.7 `GET /members?status=…&role={code}` (changed)
 
@@ -240,6 +241,8 @@ The current grants of the 7 roles carry over unchanged. EN names are copied from
 
 ### 6.2 Sync (`BuiltInRoleSync`, runs on `ApplicationReadyEvent`, one transaction, idempotent)
 
+_As shipped:_ the event fires after the server starts listening, so on the very first boot after `V41` requests can briefly reach companies the sync has not reached yet (missing `RESIDENT` / `SITE_MANAGER` / `SUPERINTENDENT`, an Owner without a new action). Later boots only differ while a changed file is being applied. Every role the sync changes gets its `version` raised by one, so an editor holding the old version gets `ROLE_CHANGED`.
+
 For every company:
 1. **Owner:** ensure it holds every catalog action at `ORGANIZATION`. This replaces the Owner part of future backfills.
 2. **For each role in the file:**
@@ -306,10 +309,11 @@ Each member row gets a role dropdown listing the assignable roles. It is disable
 - Permission names and descriptions come from the catalog.
 - New UI strings go in `features/roles/messages.ts` (EN and ES).
 - After any role write or assignment, refetch `GET /roles`. Refetch the caller's own `GET /me` when they return to the tab and on route change, so a change takes effect without a reload (D9).
+- _As shipped (#106):_ `GET /me` is refetched at most once every 30 s, so a change can take up to 30 s (or a tab return) to show in the caller's menu. The server applies it on the next request regardless.
 
 ## 9. Acceptance cases
 
-1. An Administrator creates "Foreman with prices" from Worker plus `VIEW_PRICES`, and assigns a Worker to it. That member can now `GET` prices; before, they got 403.
+1. An Administrator creates "Foreman with prices" from Worker plus `VIEW_PRICES`, and assigns a Worker to it. That member now sees what `VIEW_PRICES` gates; before, they did not. _As shipped:_ the prices endpoints were removed with the catalog services, so `VIEW_PRICES` gates the financial document folders (their entries go from 404 to 200) and the Prices entry in the dashboard menu.
 2. An Administrator sends a POST with `MANAGE_BUDGET:ORGANIZATION` and gets 403 `ROLE_ABOVE_CALLER`. The Owner sending the same request gets 201.
 3. An Administrator sends a PUT to the Finance role and gets 403 `ROLE_ABOVE_CALLER`. The Finance role shows `editable: false` to them.
 4. An Administrator sends a PUT to the Administrator role (their own) and gets 403 `ROLE_OWN`. The Owner can.

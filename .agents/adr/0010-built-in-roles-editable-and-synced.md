@@ -24,4 +24,5 @@ Consequences:
 - Role and action codes are permanent ids. Renaming means changing display names; removing a Built-in role converts existing copies rather than deleting access.
 - Custom role names cannot reuse a Built-in role's EN or ES name, and custom codes live in a separate `CUSTOM_` namespace, so the file can never collide with company data.
 - The sync runs at startup in one transaction. With many companies it may need batching, and with several backend instances it needs a lock. Neither applies today.
+- The sync runs at application ready, after the server starts listening. On the very first boot after `V41`, requests can briefly reach companies it has not synced yet (missing roles, an Owner without a new action). The window is short and accepted; running it before the server listens would delay every boot.
 - Only an Owner can change roles stronger than the Administrator role (e.g. Finance). That is intended.
