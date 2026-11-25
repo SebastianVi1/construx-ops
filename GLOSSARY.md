@@ -160,6 +160,20 @@ _Avoid_: Health, alert level
 A persistent PDF snapshot of a Site's budget, expenses, phase progress, and team, generated at a point in time by an authorized member and shared across all Site members.
 _Avoid_: Completion report, closing ticket, informe final, project report
 
+## Field updates
+
+**Field update**:
+A short message a member sends from their linked WhatsApp number saying what they started, finished or noted on one or more Tasks; nothing changes until they confirm the summary Construx sends back.
+_Avoid_: Report, Site Report, informe, reporte
+
+**Linked number**:
+The one WhatsApp number a person has proven is theirs, through which Construx knows who sent a Field update; a number belongs to one person at a time.
+_Avoid_: Phone number (for the unverified profile field), WhatsApp account
+
+**Progress note**:
+A dated entry on one Task, written by someone who can change that Task, with text, photos or both about how the work is going; once written it is never edited or deleted. Its photos have no spot on a floor plan.
+_Avoid_: Comment, log entry, Progress photo (that is a Pin)
+
 ## Floor plan pins
 
 **Pin**:
