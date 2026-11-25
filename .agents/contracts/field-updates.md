@@ -173,7 +173,7 @@ Steps:
 | A. `PICK_SITE` | List of Sites the user has access to in active memberships, by name. With more than one company, the row description is the company name. With one Site, go straight to B. With none, `NO_SITES` and the session ends | A list row |
 | B. `PICK_TASK` | List of open Tasks (`TODO`, `IN_PROGRESS`) the user can change, title = Task name, description = Phase · status. Own-Team Tasks first, then by due date. 9 per page, 10th row "See more". With none, `NO_TASKS` and the session ends | A list row |
 | C. `PICK_ACTION` | Buttons: `TODO` → Start / Finish / Note; `IN_PROGRESS` → Finish / Note | A button |
-| D. `WRITE_NOTE` (Note only) | `WRITE_NOTE` | Text of 1–1,000 characters (longer: `NOTE_TOO_LONG`, ask again) |
+| D. `WRITE_NOTE` (Note only) | `WRITE_NOTE` | Text of 1–1,000 characters (longer: `NOTE_TOO_LONG`, ask again). Text shaped like a link code is the note, unless it is a valid code: that links as in rule 1 |
 | E. `ASK_PHOTOS` | `ASK_PHOTOS` with buttons Yes / No | A button |
 | F. `ADD_PHOTOS` | `SEND_PHOTOS` with button Done | Images (`image/jpeg`, `image/png`) are downloaded from Meta at once to `whatsapp/pending/{waId}/{uuid}` in private S3. The 6th image gets `PHOTO_LIMIT`. Done with 0 photos is the same as No |
 | G. `CONFIRM` | `SUMMARY` with buttons YES / NO | A button |
@@ -191,7 +191,7 @@ On **NO**: delete the pending photos, reply `CANCELLED`, end the session.
 
 ## 6. Bot messages
 
-`{…}` are placeholders. Buttons are at most 20 characters and list rows at most 24.
+`{…}` are placeholders. Buttons are at most 20 characters and list rows at most 24. The text above buttons is at most 1,024 characters, so `SUMMARY` shortens a long note with "…"; YES saves all of it.
 
 | Key | ES | EN |
 |---|---|---|
