@@ -15,5 +15,6 @@
 | Rate limiting en auth | 💡 idea | Identidad | Pendiente técnico |
 | App móvil / PWA para check-in en campo | 💡 idea | Asistencia | — |
 | Notificaciones (email/push) de tareas e incidencias | 💡 idea | Tareas, Pines | — |
+| Avances de campo por WhatsApp (menús, sin IA en v1) | 📝 especificada | Tareas, S3 | ADR 0011 · `.agents/contracts/field-updates.md` |
 
 Leyenda: 💡 idea · 📝 especificada · 🔨 en curso · ✅ hecha (mover a su nota de funcionalidad)
