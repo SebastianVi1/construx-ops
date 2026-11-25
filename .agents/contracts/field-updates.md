@@ -67,6 +67,7 @@ All tables must run on PostgreSQL and on H2 in `MODE=PostgreSQL`.
 | `storage_key` | `varchar(300) not null` | Private S3 key |
 | `content_type` | `varchar(50) not null` | `image/jpeg` or `image/png` |
 | `size_bytes` | `bigint not null` | |
+| `position` | `int not null` | Order received, 0–4 (unique per `wa_id`) |
 
 **`progress_note`** and **`progress_note_photo`**: new data in the project module.
 
