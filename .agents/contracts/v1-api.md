@@ -8,7 +8,7 @@ Decisions behind it: ADR 0001 (Task = Activity), ADR 0002 (registration intent v
 
 - Base path `/api`. JSON, camelCase. IDs are UUIDs. Timestamps (`Instant`) are ISO-8601 UTC. Calendar dates (`LocalDate`) are `YYYY-MM-DD`.
 - Authentication: existing HttpOnly cookies. All endpoints below require an authenticated session. Unsafe methods need the CSRF header (`GET /api/auth/csrf`). The caller is always `authentication.getName()`; no endpoint accepts a user id from the client.
-- Errors: existing RFC 7807 `ProblemDetail` from `GlobalExceptionHandler` with a `code` property. Codes used: `VALIDATION_FAILED` 400 (with `errors` map), `INVALID_ARGUMENT` 400 (entity invariant, `IllegalArgumentException`), `UNAUTHORIZED` 401, `FORBIDDEN` 403, `NOT_FOUND` 404, `STATE_CONFLICT` 409 (`IllegalStateException`), `DATA_CONFLICT` 409 (unique constraint). No new codes in v1.
+- Errors: existing RFC 7807 `ProblemDetail` from `GlobalExceptionHandler` with a `code` property. Codes used: `VALIDATION_FAILED` 400 (with `errors` map), `INVALID_ARGUMENT` 400 (entity invariant, `IllegalArgumentException`), `UNAUTHORIZED` 401, `CSRF_INVALID` 403 (missing or rejected `X-XSRF-TOKEN`; the SPA refetches the token and retries once), `FORBIDDEN` 403 (permission denied, never retried), `NOT_FOUND` 404, `STATE_CONFLICT` 409 (`IllegalStateException`), `DATA_CONFLICT` 409 (unique constraint). No new codes in v1.
 - Lists are plain JSON arrays, unpaginated in v1 (see open question Q6).
 - `PATCH` is partial: absent field = unchanged. `null` is not accepted for required fields.
 
