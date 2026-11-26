@@ -23,9 +23,19 @@ Dashboard endpoints follow the existing rules: cookie session, CSRF header on un
 | D11 | One Construx number on Meta's Cloud API. No templates, no notifications, no per-company switch. (Q24, Q27, Q31) |
 | D12 | Construx keeps only what is saved plus audit events. Raw webhook logs are deleted after 30 days. (Q37) |
 
-## 2. Data model (migration `V42__field_updates.sql`)
+## 2. Data model (migrations `V42` to `V48`)
 
-All tables must run on PostgreSQL and on H2 in `MODE=PostgreSQL`.
+All tables must run on PostgreSQL and on H2 in `MODE=PostgreSQL`. The schema shipped as one migration per slice, in `construx/src/main/resources/db/migration`:
+
+| Migration | Tables |
+|---|---|
+| `V42__progress_note.sql` | `progress_note` |
+| `V43__progress_note_photo.sql` | `progress_note_photo` |
+| `V44__whatsapp_inbound.sql` | `whatsapp_processed_message`, `whatsapp_unlinked_reply` |
+| `V45__whatsapp_link.sql` | `whatsapp_link`, `whatsapp_link_code` |
+| `V46__whatsapp_wrong_code.sql` | `whatsapp_wrong_code` |
+| `V47__whatsapp_session.sql` | `whatsapp_session` |
+| `V48__whatsapp_pending_photo.sql` | `whatsapp_pending_photo` |
 
 **`whatsapp_link`**: one row per Linked number.
 
@@ -51,6 +61,7 @@ All tables must run on PostgreSQL and on H2 in `MODE=PostgreSQL`.
 | Column | Type | Meaning |
 |---|---|---|
 | `wa_id` | `varchar(20)` pk | |
+| `user_account_id` | `uuid not null` → `"user-account"` (cascade) | Who made the choices. A session left on a number that moved to another account is ended, never carried over |
 | `step` | `varchar(30) not null` | `PICK_SITE`, `PICK_TASK`, `PICK_ACTION`, `WRITE_NOTE`, `ASK_PHOTOS`, `ADD_PHOTOS`, `CONFIRM` |
 | `organization_id`, `project_id`, `goal_id`, `activity_id` | `uuid` null | Choices so far |
 | `action` | `varchar(10)` null | `START`, `FINISH`, `NOTE` |
@@ -67,6 +78,7 @@ All tables must run on PostgreSQL and on H2 in `MODE=PostgreSQL`.
 | `storage_key` | `varchar(300) not null` | Private S3 key |
 | `content_type` | `varchar(50) not null` | `image/jpeg` or `image/png` |
 | `size_bytes` | `bigint not null` | |
+| `position` | `int not null` | Order received, 0–4 (unique per `wa_id`) |
 
 **`progress_note`** and **`progress_note_photo`**: new data in the project module.
 
@@ -82,9 +94,20 @@ All tables must run on PostgreSQL and on H2 in `MODE=PostgreSQL`.
 | `progress_note_id` | `uuid not null` → `progress_note` | At most 5 per note |
 | `storage_key`, `content_type`, `size_bytes`, `position` | | `position` 0–4 |
 
+Webhook bookkeeping (no message content is kept):
+
+| Table | Columns | Meaning |
+|---|---|---|
+| `whatsapp_processed_message` | `message_id` pk, `wa_id`, `received_at` | Message ids already handled, so a retried post is processed once |
+| `whatsapp_unlinked_reply` | `wa_id` pk, `replied_at` | When an unlinked number last got `NOT_LINKED` (at most once per 24 hours) |
+| `whatsapp_wrong_code` | `wa_id` pk, `window_start`, `wrong_count`, `blocked_until` null | Wrong link codes in the current hour; 10 block the number for an hour |
+
 Rules for the cleanup job (every 5 minutes):
 - Delete sessions idle for 30 minutes or more, together with their pending photos and the matching S3 objects.
 - Delete expired link codes.
+- Delete processed message ids, `NOT_LINKED` marks and wrong-code counts that no longer matter.
+
+Storage keys: pending photos live at `whatsapp/pending/{waId}/{uuid}`. On YES each one is copied to a key of the Task's notes (`orgs/{organizationId}/projects/{projectId}/activities/{activityId}/progress-notes/{uuid}`, the same layout as a dashboard upload), the note takes the new key, and the pending object is deleted after commit (on a rollback the copies are deleted instead). A note never points at `whatsapp/pending/`, and deleting a Task deletes its note photos from storage after commit.
 
 ## 3. Module layout
 
@@ -116,6 +139,7 @@ Configuration (all from environment, never committed):
 - `WHATSAPP_APP_SECRET`
 - `WHATSAPP_VERIFY_TOKEN`
 - `WHATSAPP_DISPLAY_NUMBER`, the number shown in the dashboard.
+- `WHATSAPP_GRAPH_API_URL`, optional: the Graph API base, default `https://graph.facebook.com/v23.0`.
 
 ## 4. Endpoints
 
@@ -173,7 +197,9 @@ Steps:
 | A. `PICK_SITE` | List of Sites the user has access to in active memberships, by name. With more than one company, the row description is the company name. With one Site, go straight to B. With none, `NO_SITES` and the session ends | A list row |
 | B. `PICK_TASK` | List of open Tasks (`TODO`, `IN_PROGRESS`) the user can change, title = Task name, description = Phase · status. Own-Team Tasks first, then by due date. 9 per page, 10th row "See more". With none, `NO_TASKS` and the session ends | A list row |
 | C. `PICK_ACTION` | Buttons: `TODO` → Start / Finish / Note; `IN_PROGRESS` → Finish / Note | A button |
-| D. `WRITE_NOTE` (Note only) | `WRITE_NOTE` | Text of 1–1,000 characters (longer: `NOTE_TOO_LONG`, ask again) |
+| D. `WRITE_NOTE` (Note only) | `WRITE_NOTE` | Text of 1–1,000 characters (longer: `NOTE_TOO_LONG`, ask again). Text shaped like a link code is the note, unless it is a valid code: that links as in rule 1 |
+
+A Linked number that sends text shaped like a link code always tries it as a code first: a valid code links (or moves) the number as in rule 1. One that links nothing counts as a wrong code but gets no `CODE_INVALID`: it is handled by the current step like any text (the note in D, `USE_BUTTONS` and the menu elsewhere, step A without a session).
 | E. `ASK_PHOTOS` | `ASK_PHOTOS` with buttons Yes / No | A button |
 | F. `ADD_PHOTOS` | `SEND_PHOTOS` with button Done | Images (`image/jpeg`, `image/png`) are downloaded from Meta at once to `whatsapp/pending/{waId}/{uuid}` in private S3. The 6th image gets `PHOTO_LIMIT`. Done with 0 photos is the same as No |
 | G. `CONFIRM` | `SUMMARY` with buttons YES / NO | A button |
@@ -183,15 +209,15 @@ On **YES**, in one transaction:
 2. Apply the action:
    - Start: `ActivityService.start`.
    - Finish: `ActivityService.complete`.
-   - Note, or any action with photos: `ProgressNoteService.add(..., source = WHATSAPP)`. The pending photos move to the note's keys.
-3. Reply `SAVED` with the button "Another task", which goes to B for the same Site.
-4. If the recheck fails, reply `CHANGED` and end the session.
+   - Note, or any action with photos: `ProgressNoteService.add(..., source = WHATSAPP)`. The pending photos move to the note's keys (§2 storage keys).
+3. Reply `SAVED` with the button "Another task", which goes to B for the same Site. The button carries when it was sent: tapped 30 minutes or more later it gets `EXPIRED` and step A, like any old button.
+4. If the recheck fails, or the note refuses what it is given (for example a photo no longer a JPEG or PNG of at most 5 MB), reply `CHANGED`, save nothing and end the session.
 
 On **NO**: delete the pending photos, reply `CANCELLED`, end the session.
 
 ## 6. Bot messages
 
-`{…}` are placeholders. Buttons are at most 20 characters and list rows at most 24.
+`{…}` are placeholders. Buttons are at most 20 characters and list rows at most 24. The text above buttons is at most 1,024 characters, so `SUMMARY` shortens a long note with "…"; YES saves all of it.
 
 | Key | ES | EN |
 |---|---|---|
@@ -219,6 +245,15 @@ On **NO**: delete the pending photos, reply `CANCELLED`, end the session.
 | `USE_BUTTONS` | Por ahora usa los botones. | Please use the buttons for now. |
 | `EXPIRED` (prefix when a stale button is tapped) | Pasó mucho tiempo, empecemos de nuevo. | That took a while, let's start again. |
 
+The summary is built from parts: `SUMMARY` (`📋 Avance de campo · {site}\n{task} → {action}`), then `NOTE_LINE` (`Nota: "{note}"` / `Note: "{note}"`) when there is a note, `PHOTOS_LINE` (`{n} fotos` / `{n} photos`) or `ONE_PHOTO_LINE` (`1 foto` / `1 photo`) when there are photos, a blank line and `SAVE_IT` (`¿Lo guardo?` / `Save it?`). Other labels the bot uses:
+
+| Key | ES | EN |
+|---|---|---|
+| `CHOOSE` (the button that opens a list) | Elegir | Choose |
+| `STATUS_TODO` (Task status in a row description) | Por hacer | To do |
+| `STATUS_IN_PROGRESS` | En curso | In progress |
+| `STARTED` / `FINISHED` (action in the summary) | Iniciada / Terminada | Started / Finished |
+
 Before `LINKED` the language comes from the link code. Before any link, `NOT_LINKED` and `CODE_INVALID` are sent in both languages, Spanish first.
 
 ## 7. Dashboard
@@ -230,7 +265,7 @@ Before `LINKED` the language comes from the link code. Before any link, `NOT_LIN
   - A list of Progress notes with author, date, a WhatsApp badge when `source = WHATSAPP`, and photo thumbnails that open full size.
   - A form for text plus up to 5 photos, shown only with permission.
 - All strings in EN and ES.
-- Guide: optional step `link-whatsapp` in the Manage your sites section (dashboard only, `features/guide/catalog.ts`).
+- Guide: optional step `link-whatsapp` in the Manage your sites section (dashboard only, `features/guide/catalog.ts`, `optional: true`): it is listed but left out of the progress count, so the guide completes without it.
 
 ## 8. Acceptance cases
 
